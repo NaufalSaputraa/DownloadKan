@@ -23,8 +23,10 @@ export interface HistoryItem {
 const SETTINGS_KEY = 'dk.settings'
 const HISTORY_KEY = 'dk.history.v1'
 
+export const DEFAULT_JEREXD_KEY = 'JEREXD_API_KEY_TERHAPUS'
+
 export const DEFAULT_SETTINGS: Settings = {
-  jerexdKey: 'JEREXD_API_KEY_TERHAPUS',
+  jerexdKey: DEFAULT_JEREXD_KEY,
   defaultFormat: 'mp4',
   audioQuality: 'flac',
   historyLimit: 50,
@@ -41,7 +43,9 @@ function safeGet<T>(key: string, fallback: T): T {
 }
 
 export function getSettings(): Settings {
-  return { ...DEFAULT_SETTINGS, ...safeGet<Partial<Settings>>(SETTINGS_KEY, {}) }
+  const loaded = safeGet<Partial<Settings>>(SETTINGS_KEY, {})
+  const key = loaded.jerexdKey?.trim() ? loaded.jerexdKey.trim() : DEFAULT_JEREXD_KEY
+  return { ...DEFAULT_SETTINGS, ...loaded, jerexdKey: key }
 }
 
 export function saveSettings(patch: Partial<Settings>): Settings {

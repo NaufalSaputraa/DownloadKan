@@ -49,7 +49,7 @@ export function SearchBar({ disabled, onSubmit }: Props) {
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
     >
       <div
-        className="glass flex w-full items-center gap-3 rounded-[20px] px-4 py-3 sm:px-5 sm:py-4"
+        className="glass flex w-full items-center gap-3 rounded-[20px] px-4 py-3 sm:px-5 sm:py-4 border-none outline-none focus-within:outline-none focus-within:ring-0 shadow-none"
         onClick={() => inputRef.current?.focus()}
         role="presentation"
       >
@@ -66,7 +66,7 @@ export function SearchBar({ disabled, onSubmit }: Props) {
             if (e.key === 'Enter' && value.trim() && !disabled) onSubmit(value.trim())
           }}
           placeholder="Tempel tautan media/magnet atau cari judul lagu/artis…"
-          className="min-w-0 flex-1 bg-transparent font-mono text-sm text-ink outline-none placeholder:text-ink-faint"
+          className="min-w-0 flex-1 bg-transparent font-mono text-sm text-ink border-none outline-none focus:outline-none focus:ring-0 shadow-none placeholder:text-ink-faint"
           aria-label="Tautan atau magnet yang mau diunduh"
           autoCapitalize="off"
           autoCorrect="off"
