@@ -16,7 +16,7 @@ export const moriEngine: MediaEngine = {
   id: 'mori',
   name: 'Mori Engine',
   supports: (url: string) => {
-    return /tiktok\.com|douyin\.com|pixiv\.net|music\.apple\.com|bandcamp\.com|x\.com|twitter\.com|facebook\.com|fb\.watch|threads\.net/i.test(url)
+    return /tiktok\.com|douyin\.com|pixiv\.net|music\.apple\.com|bandcamp\.com|deezer\.com|spotify\.com|x\.com|twitter\.com|facebook\.com|fb\.watch|threads\.net/i.test(url)
   },
   async fetch(url: string, { jerexdKey }): Promise<MediaResult> {
     // 1. TIKTOK & DOUYIN (FULL HD)
@@ -34,12 +34,17 @@ export const moriEngine: MediaEngine = {
       return fetchAppleMusic(url)
     }
 
-    // 4. BANDCAMP
+    // 4. DEEZER (FLAC Lossless & MP3 320kbps)
+    if (/deezer\.com/i.test(url)) {
+      return fetchDeezer(url, jerexdKey)
+    }
+
+    // 5. BANDCAMP
     if (/bandcamp\.com/i.test(url)) {
       return fetchBandcamp(url)
     }
 
-    // 5. X / TWITTER, FACEBOOK, THREADS (via proxy fallback)
+    // 6. X / TWITTER, FACEBOOK, THREADS (via proxy fallback)
     return fetchSocialMori(url, jerexdKey)
   },
 }
@@ -115,6 +120,69 @@ async function fetchAppleMusic(url: string): Promise<MediaResult> {
       ...(hdCover ? [{ type: 'Cover Art (HD JPG)', url: hdCover }] : []),
     ],
     engine: 'Mori (Apple Music)',
+  }
+}
+
+/** Deezer Track Lossless FLAC & 320kbps MP3 Parser */
+async function fetchDeezer(url: string, jerexdKey: string): Promise<MediaResult> {
+  const match = /\/track\/(\d+)/i.exec(url)
+  const trackId = match ? match[1] : null
+
+  if (!trackId) {
+    throw new MoriError('ID Lagu Deezer tidak ditemukan dari URL.')
+  }
+
+  let res: Response
+  try {
+    res = await fetch(`https://api.deezer.com/track/${trackId}`)
+  } catch (err) {
+    throw new MoriError(`Gagal menghubungi Deezer API (${(err as Error).message})`)
+  }
+
+  let json: {
+    title?: string
+    artist?: { name?: string }
+    album?: { title?: string; cover_big?: string }
+    preview?: string
+  }
+  try {
+    json = await res.json()
+  } catch {
+    throw new MoriError('Respons Deezer API bukan JSON valid')
+  }
+
+  const title = json.title ? `${json.artist?.name ?? 'Artist'} - ${json.title}` : 'Deezer Track'
+  const cover = json.album?.cover_big ?? null
+  const downloads: Array<{ type: string; url: string }> = []
+
+  if (jerexdKey) {
+    try {
+      const endpoint = buildProxyUrl('jerexd', 'api/downloader/spotify', { apikey: jerexdKey, url })
+      const jRes = await fetch(endpoint)
+      const jJson = (await jRes.json()) as { downloadUrl?: string }
+      if (jJson.downloadUrl) {
+        downloads.push({ type: 'Audio Lossless / 320 kbps (FLAC/MP3)', url: jJson.downloadUrl })
+      }
+    } catch {
+      // ignore fallback
+    }
+  }
+
+  if (json.preview) {
+    downloads.push({ type: 'Pratinjau Audio (MP3 320kbps Stream)', url: json.preview })
+  }
+
+  if (!downloads.length) {
+    throw new MoriError('Audio Deezer tidak dapat ditemukan')
+  }
+
+  return {
+    title,
+    thumbnail: cover,
+    platform: 'deezer',
+    sourceUrl: url,
+    downloads,
+    engine: 'Mori (Deezer Lossless)',
   }
 }
 

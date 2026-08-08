@@ -11,6 +11,7 @@ export type MediaPlatform =
   | 'soundcloud'
   | 'pixiv'
   | 'bandcamp'
+  | 'deezer'
   | 'douyin'
   | 'rednote'
   | 'bilibili'
@@ -43,6 +44,7 @@ const PLATFORM_RULES: Array<[MediaPlatform, RegExp]> = [
   ['pinterest', /pinterest\.com|pin\.it/i],
   ['pixiv', /pixiv\.net/i],
   ['bandcamp', /bandcamp\.com/i],
+  ['deezer', /deezer\.com|deezer\.page\.link/i],
   ['rednote', /xhslink\.com|xiaohongshu\.com/i],
   ['bilibili', /bilibili\.com|b23\.tv/i],
 ]
