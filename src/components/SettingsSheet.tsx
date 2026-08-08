@@ -106,6 +106,25 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                 </span>
               </div>
 
+              {/* Kualitas Audio Default */}
+              <div className="mb-4">
+                <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-ink-faint">
+                  Kualitas Audio Utama
+                </label>
+                <select
+                  value={settings.audioQuality ?? 'flac'}
+                  onChange={(e) => onChange({ audioQuality: e.target.value as Settings['audioQuality'] })}
+                  className="w-full rounded-2xl border border-glass-border bg-glass px-4 py-3 font-mono text-sm text-ink outline-none transition-colors focus:border-glass-border focus:ring-1 focus:ring-glass-border"
+                >
+                  <option value="flac" className="bg-[oklch(14%_0.015_260)] text-ink">FLAC Lossless 1411 kbps (Utama / Hi-Fi)</option>
+                  <option value="mp3_320" className="bg-[oklch(14%_0.015_260)] text-ink">MP3 High Quality 320 kbps (Jernih)</option>
+                  <option value="mp3_192" className="bg-[oklch(14%_0.015_260)] text-ink">MP3 Standard 192 kbps (Hemat)</option>
+                </select>
+                <span className="mt-1.5 block text-xs text-ink-faint">
+                  Prioritas utama saat mengunduh lagu Deezer / Spotify / Apple Music.
+                </span>
+              </div>
+
               {/* Status Health Engine */}
               <div className="mb-5 rounded-2xl border border-glass-border bg-glass/40 p-4">
                 <span className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-ink-faint">

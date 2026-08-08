@@ -1,6 +1,9 @@
+export type AudioQualitySetting = 'flac' | 'mp3_320' | 'mp3_192'
+
 export interface Settings {
   jerexdKey: string
   defaultFormat: string
+  audioQuality: AudioQualitySetting
   historyLimit: number
 }
 
@@ -23,6 +26,7 @@ const HISTORY_KEY = 'dk.history.v1'
 export const DEFAULT_SETTINGS: Settings = {
   jerexdKey: 'JEREXD_API_KEY_TERHAPUS',
   defaultFormat: 'mp4',
+  audioQuality: 'flac',
   historyLimit: 50,
 }
 
