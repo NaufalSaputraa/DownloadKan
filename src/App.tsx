@@ -99,8 +99,6 @@ function App() {
 
       {/* Main */}
       <main id="main" className="flex flex-col gap-4">
-        <SearchBar disabled={state.status === 'analyzing'} onSubmit={handleSubmit} />
-
         <AnimatePresence mode="wait">
           {tab === 'media' ? (
             <motion.div
@@ -111,6 +109,7 @@ function App() {
               transition={{ duration: 0.25 }}
               className="flex flex-col gap-4"
             >
+              <SearchBar disabled={state.status === 'analyzing'} onSubmit={handleSubmit} />
               {state.status === 'analyzing' && <SkeletonState />}
               {state.status === 'error' && <ErrorState message={state.error ?? ''} />}
               {state.status === 'done' && state.result && <MediaResult result={state.result} />}
