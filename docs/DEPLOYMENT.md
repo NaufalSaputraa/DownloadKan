@@ -48,13 +48,12 @@ npm run pages:deploy
 
 ## 3. Environment / Config
 
-- **`VITE_JEREXD_DEFAULT_KEY`** (wajib untuk produksi): key Jerexd default (fallback). SPA membaca key
-  dari `localStorage` user; jika user belum mengisi key sendiri, dipakai key ini. **Set sebagai
-  environment variable** di Cloudflare Pages → **Settings → Environment variables → Production**
-  (nama persis: `VITE_JEREXD_DEFAULT_KEY`), lalu build & deploy ulang agar key ter-bundle ke JS.
-  Lokal: isi di `.env` (jangan di-commit; `.env.example` sebagai template).
-- `TELEGRAM_BOT_TOKEN` (secret, opsional): hanya untuk bot Telegram webhook — set via
-  `npx wrangler pages secret put TELEGRAM_BOT_TOKEN`.
+- **`VITE_JEREXD_DEFAULT_KEY`** (untuk produksi): key Jerexd default (fallback). Dibaca **saat build**
+  oleh Vite (di-inline ke bundle JS). Cara set yang PASTI bekerja: **GitHub Actions** — workflow di
+  `.github/workflows/deploy.yml` meng-inject `VITE_JEREXD_DEFAULT_KEY` dari GitHub secret saat
+  `npm run build`. (Environment variable di dashboard Cloudflare juga bisa, tapi tidak seandalkan
+  Secret Pages untuk `VITE_*` — Secret hanya untuk runtime Functions.) Lokal: `.env` (jangan di-commit).
+- `TELEGRAM_BOT_TOKEN` (secret, untuk bot webhook): set via `npx wrangler pages secret put TELEGRAM_BOT_TOKEN`.
 - Tidak ada env runtime lain yang wajib.
 
 ---

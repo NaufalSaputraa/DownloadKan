@@ -1,15 +1,41 @@
 # Menghubungkan DownloadKan ke Git (Cloudflare Pages)
 
-Agar env var `VITE_JEREXD_DEFAULT_KEY` (key Jerexd default) terbaca saat build di cloud, project
-Pages harus terhubung ke GitHub lewat **Git integration**. Build di cloud akan menjalankan
-`npm run build` dan membaca env var Production yang kamu set di dashboard.
+Agar env var `VITE_JEREXD_DEFAULT_KEY` (key Jerexd default) terbaca saat build di cloud, build harus
+menjalankan `npm run build` dengan env var tersedia **saat build time** (Vite meng-inline `VITE_*`
+ke bundle JS — bukan dibaca saat runtime).
 
-> **Kenapa perlu?** Deploy via `wrangler pages deploy dist` itu build-lokal — env var dashboard
-> tidak ikut. Git integration membuat Cloudflare yang build (di cloud), jadi env var terbaca.
+> **⚠️ PENTING — Secret vs Environment variable:**
+> - `VITE_*` dibaca **saat build** oleh Vite. Set sebagai **Environment variable (plain)** di build
+>   process, ATAU injeksi via GitHub Actions.
+> - **Secret Cloudflare Pages** hanya tersedia untuk **runtime Functions** (`context.env`) — **TIDAK
+>   dijamin tersedia saat build**. Jangan andalkan Secret Pages untuk `VITE_*`.
+> - Nilai `VITE_*` selalu terlihat di DevTools (ter-inline plain text) — ini sifat client-side,
+>   bukan "rahasia" yang aman.
 
 ---
 
-## Langkah (dari dashboard Cloudflare)
+## Cara TERBAIK: GitHub Actions (disarankan)
+
+Workflow sudah disiapkan di `.github/workflows/deploy.yml`. Build berjalan di GitHub (env di-inject
+pasti terbaca), lalu di-deploy ke Cloudflare Pages.
+
+### Setup (1 kali)
+1. Buat **API token Cloudflare**: dashboard → My Profile → API Tokens → Create Token →
+   template **"Edit Cloudflare Workers"** (beri izin `Workers Scripts: Edit` pada akun).
+2. Di GitHub repo → **Settings → Secrets and variables → Actions**, tambah 2 secrets:
+   - `CLOUDFLARE_API_TOKEN` = token di atas
+   - `VITE_JEREXD_DEFAULT_KEY` = key Jerexd default kamu
+3. Push ke `main` → Actions otomatis build + deploy.
+4. (Opsional) Cek deployment: dashboard Pages → project → Deployments.
+
+> Keuntungan: env di-inject eksplisit saat build (bebas dari quirk dashboard), dan `dist` tidak
+> perlu di-commit.
+
+---
+
+## Cara lama: Build configuration di dashboard
+
+Jika tetap mau via dashboard (tanpa Actions):
 
 1. **Login** ke [dash.cloudflare.com](https://dash.cloudflare.com).
 2. Buka **Workers & Pages** → pilih project **`downloadkan`**.
@@ -19,59 +45,19 @@ Pages harus terhubung ke GitHub lewat **Git integration**. Build di cloud akan m
    - **Build output directory:** `dist`
    - **Root directory:** *(kosongkan / `/`)*
    - **Node.js version:** `22` (sesuai `.nvmrc`)
-5. Di **Environment variables** (tab **Production**), tambahkan:
+5. Di **Environment variables** (tab **Production**), tambahkan **Environment variable (plain)**:
    - Nama: `VITE_JEREXD_DEFAULT_KEY`
    - Nilai: *(key Jerexd default kamu)*
-6. Klik **Save**.
+6. Klik **Save** → Deploy.
+
+> ⚠️ Jika kamu sudah menambahkan `VITE_JEREXD_DEFAULT_KEY` sebagai **Secret** di dashboard: untuk
+> `VITE_*` lebih baik dijadikan **Environment variable** (lihat catatan di atas), atau pakai GitHub
+> Actions agar ter-inject saat build.
 
 ### Menghubungkan Git (jika project belum terhubung)
-- Di halaman project, klik **"Create project" / "Connect to Git"** (atau di dashboard **Workers &
-  Pages → Create application → Pages → Connect to Git**).
+- Di dashboard **Workers & Pages → Create application → Pages → Connect to Git**.
 - Pilih repo **`NaufalSaputraa/DownloadKan`** → **Begin setup**.
-- Pastikan build config di atas terisi → **Save and Deploy**.
-
-> Catatan: jika project sudah dibuat lewat CLI (kasus kita), paling aman buat project Pages **baru**
-> via Connect to Git (nama bebas, mis. `downloadkan-git`), set env var, lalu arahkan custom domain.
-> Ini menghindari konflik konfigurasi antara project CLI dan project Git.
-
----
-
-## Alternatif: GitHub Actions (tanpa dashboard)
-
-Kalau mau deploy dari git tanpa connect Git di dashboard, pakai workflow Actions. Buat
-`.github/workflows/deploy.yml` dengan secret `CLOUDFLARE_API_TOKEN` dan env
-`VITE_JEREXD_DEFAULT_KEY` di **GitHub → Settings → Secrets and variables → Actions**.
-
-```yaml
-name: Deploy to Cloudflare Pages
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      deployments: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci
-      - run: npm run build
-        env:
-          VITE_JEREXD_DEFAULT_KEY: ${{ secrets.VITE_JEREXD_DEFAULT_KEY }}
-      - uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: 2e9b5d234a5ff40ceb2377f739e0718b
-          projectName: downloadkan
-          directory: dist
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-```
+- Isi build config di atas → **Save and Deploy**.
 
 ---
 
@@ -81,3 +67,4 @@ jobs:
 - [ ] Buka `https://downloadkan.pages.dev` → DevTools → Network → cari `index-*.js`.
 - [ ] Isi JS memuat string key default (artinya env var terbaca saat build).
 - [ ] Coba Analisis link Spotify tanpa mengisi key di Settings → harus berhasil (pakai key default).
+
