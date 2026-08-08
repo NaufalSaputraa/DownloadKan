@@ -20,9 +20,9 @@
   --color-glass-2: oklch(100% 0 0 / 0.09);
   --color-glass-border: oklch(100% 0 0 / 0.12);
   --color-glass-border-soft: oklch(100% 0 0 / 0.07);
-  --color-accent: oklch(72% 0.13 258);
-  --color-accent-soft: oklch(72% 0.13 258 / 0.14);
-  --color-focus: oklch(72% 0.13 258);
+  --color-accent: oklch(88% 0.005 260);
+  --color-accent-soft: oklch(100% 0 0 / 0.12);
+  --color-focus: oklch(90% 0.005 260 / 0.4);
   --color-danger: oklch(66% 0.19 25);
 }
 
