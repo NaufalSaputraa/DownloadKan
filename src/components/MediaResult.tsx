@@ -15,18 +15,18 @@ export function MediaResult({ result }: { result: MediaResult }) {
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       className="glass w-full overflow-hidden rounded-[24px]"
     >
-      <div className="grid grid-cols-1 gap-0 md:grid-cols-[240px_1fr]">
+      <div className="grid grid-cols-1 gap-0 sm:grid-cols-[190px_1fr] md:grid-cols-[220px_1fr]">
         {/* Thumbnail */}
-        <div className="relative min-h-[180px] overflow-hidden bg-glass-2 md:min-h-full">
+        <div className="relative min-h-[160px] overflow-hidden bg-glass-2 sm:min-h-full">
           {result.thumbnail ? (
             <img
               src={result.thumbnail}
               alt=""
               loading="lazy"
-              className="h-full w-full min-h-[180px] object-cover"
+              className="h-full w-full min-h-[160px] object-cover"
             />
           ) : (
-            <div className="flex h-full min-h-[180px] items-center justify-center text-ink-faint">
+            <div className="flex h-full min-h-[160px] items-center justify-center text-ink-faint">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
                 <path d="m9 9 5 3-5 3V9Z" fill="currentColor" />
@@ -41,7 +41,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
         </div>
 
         {/* Body */}
-        <div className="flex flex-col justify-between gap-4 p-5 sm:p-6">
+        <div className="flex min-w-0 flex-col justify-between gap-4 p-4 sm:p-5">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-faint">

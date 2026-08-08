@@ -24,6 +24,8 @@ self.addEventListener('fetch', (event) => {
   // Hanya cache GET request same-origin non-API
   if (event.request.method !== 'GET') return
   const url = new URL(event.request.url)
+  if (!url.protocol.startsWith('http')) return
+  if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) return
 
   event.respondWith(
