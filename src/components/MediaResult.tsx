@@ -76,7 +76,27 @@ export function MediaResult({ result }: { result: MediaResult }) {
                 ))}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              {/* Audio Preview Inline Player */}
+              {/mp3|audio|music|sound|preview/i.test(item.type) && (
+                <div className="mt-2 rounded-2xl border border-glass-border bg-glass/60 p-3">
+                  <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
+                    <span className="flex items-center gap-1.5 font-medium text-ink">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M9 18V5l12-2v13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="1.8" />
+                        <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="1.8" />
+                      </svg>
+                      Pratinjau Audio ({item.type})
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">Direct Stream</span>
+                  </div>
+                  <audio controls controlsList="nodownload" className="h-8 w-full rounded-lg accent-accent" src={item.url}>
+                    Browser-mu tidak mendukung pemutar audio.
+                  </audio>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
                 <a
                   href={item.url}
                   download={result.title ? `${result.title.replace(/[^\w\s-]/g, '_').slice(0, 50)}.${item.type}` : true}

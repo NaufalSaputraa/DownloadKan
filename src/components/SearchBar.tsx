@@ -24,10 +24,14 @@ export function SearchBar({ disabled, onSubmit }: Props) {
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText()
-      if (text) {
-        setValue(text)
+      const trimmed = text ? text.trim() : ''
+      if (trimmed) {
+        setValue(trimmed)
         setPasted(true)
         window.setTimeout(() => setPasted(false), 1400)
+        if (!disabled && /^https?:\/\//i.test(trimmed) || /^magnet:\?/i.test(trimmed)) {
+          onSubmit(trimmed)
+        }
       }
     } catch {
       inputRef.current?.focus()
