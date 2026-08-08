@@ -15,7 +15,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       className="glass w-full overflow-hidden rounded-[24px]"
     >
-      <div className="grid grid-cols-1 gap-0 sm:grid-cols-[190px_1fr] md:grid-cols-[220px_1fr]">
+      <div className="grid grid-cols-1 gap-0 sm:grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[210px_minmax(0,1fr)]">
         {/* Thumbnail */}
         <div className="relative min-h-[160px] overflow-hidden bg-glass-2 sm:min-h-full">
           {result.thumbnail ? (
@@ -41,8 +41,8 @@ export function MediaResult({ result }: { result: MediaResult }) {
         </div>
 
         {/* Body */}
-        <div className="flex min-w-0 flex-col justify-between gap-4 p-4 sm:p-5">
-          <div className="space-y-3">
+        <div className="flex min-w-0 max-w-full flex-col justify-between gap-4 overflow-hidden p-4 sm:p-5">
+          <div className="min-w-0 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-faint">
                 Sumber
@@ -51,15 +51,15 @@ export function MediaResult({ result }: { result: MediaResult }) {
                 {result.engine}
               </span>
             </div>
-            <h2 className="text-lg font-medium leading-snug text-ink">{result.title}</h2>
-            <p className="truncate font-mono text-xs text-ink-faint" title={result.sourceUrl}>
+            <h2 className="line-clamp-2 break-words text-lg font-medium leading-snug text-ink">{result.title}</h2>
+            <p className="truncate max-w-full font-mono text-xs text-ink-faint" title={result.sourceUrl}>
               {result.sourceUrl}
             </p>
           </div>
 
           {item && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
+            <div className="min-w-0 space-y-3">
+              <div className="flex max-w-full flex-wrap gap-2 overflow-hidden">
                 {result.downloads.map((d, i) => (
                   <button
                     key={i}
@@ -78,7 +78,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
 
               {/* Audio Preview Inline Player */}
               {/mp3|audio|music|sound|preview/i.test(item.type) && (
-                <div className="mt-2 rounded-2xl border border-glass-border bg-glass/60 p-3">
+                <div className="mt-2 min-w-0 rounded-2xl border border-glass-border bg-glass/60 p-3">
                   <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
                     <span className="flex items-center gap-1.5 font-medium text-ink">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -96,7 +96,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-3 pt-1">
+              <div className="flex max-w-full flex-wrap items-center gap-2.5 pt-1 overflow-hidden">
                 <a
                   href={item.url}
                   download={result.title ? `${result.title.replace(/[^\w\s-]/g, '_').slice(0, 50)}.${item.type}` : true}
