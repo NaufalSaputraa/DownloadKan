@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { Settings } from '../lib/storage'
+import { getEngineHealth } from '../engines/media'
 
 interface Props {
   open: boolean
@@ -12,6 +13,7 @@ interface Props {
 export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
   const [draft, setDraft] = useState(settings.jerexdKey)
   const [saved, setSaved] = useState(false)
+  const healthList = getEngineHealth()
 
   // sinkronkan draft bila data berubah di luar
   if (!open && draft !== settings.jerexdKey) setDraft(settings.jerexdKey)
@@ -64,7 +66,7 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                 API key hanya tersimpan di browser-mu (localStorage). Tidak pernah dikirim ke server kami.
               </p>
 
-              <label className="block">
+              <label className="block mb-4">
                 <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-ink-faint">
                   API key Jerexd
                 </span>
@@ -72,16 +74,34 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && save()}
-                  placeholder="jere_…"
+                  placeholder="JEREXD_API_KEY_TERHAPUS"
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck={false}
                   className="w-full rounded-2xl border border-glass-border bg-glass px-4 py-3 font-mono text-sm text-ink outline-none placeholder:text-ink-faint focus:border-accent"
                 />
                 <span className="mt-1.5 block text-xs text-ink-faint">
-                  Untuk engine fallback. Engine utama (Nezumi) gratis tanpa key.
+                  Engine fallback. Default: <code className="font-mono text-accent">JEREXD_API_KEY_TERHAPUS</code>.
                 </span>
               </label>
+
+              {/* Status Health Engine */}
+              <div className="mb-5 rounded-2xl border border-glass-border bg-glass/40 p-4">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-ink-faint">
+                  Status Engine Media
+                </span>
+                <div className="space-y-2">
+                  {healthList.map((e) => (
+                    <div key={e.id} className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-ink">{e.name}</span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-glass-2 px-2.5 py-0.5 font-mono text-ink-muted">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        {e.id === 'nezumi' ? 'Gratis (Aktif)' : e.score > 0 ? `Sukses: ${e.score}` : 'Siaga'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               <div className="mt-5 flex items-center gap-3">
                 <button

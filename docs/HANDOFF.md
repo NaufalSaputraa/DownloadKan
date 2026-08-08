@@ -158,13 +158,12 @@ Jangan hapus/hapus konfigurasi ini tanpa tahu persis apa yang kamu lakukan.
 - [ ] Setelah deploy: verifikasi `_headers` (CSP), proxy media, torrent search di domain live.
 
 ### 🟡 Peningkatan yang masuk akal
-- [ ] **Porting skraper Mori via proxy** untuk platform yang belum tercakup:
-      Pixiv, Bilibili, Bandcamp, Apple Music, RedNote, Douyin, Facebook, Threads.
-      (Pola di `docs/ADR-005` — implementasikan sebagai `MediaEngine` baru yang memanggil `/api/proxy/mori-*`,
-      lalu tambahkan CF Function proxy target baru.)
-- [ ] **History torrent** penuh (media sudah punya history di localStorage; torrent belum lengkap).
-- [ ] UI Settings: indikator health per engine (engine mana yang sukses/gagal terakhir).
-- [ ] PWA installable penuh (manifest sudah ada; tinggal service worker/offline shell).
+- [x] **Dukungan IDM / ABDM / Download Manager**: link unduhan direct dengan atribut `download` & tombol "Salin Tautan" instan.
+- [x] **Key Jerexd Default**: set key `JEREXD_API_KEY_TERHAPUS` sebagai default fallback.
+- [x] **History torrent** penuh (otomatis dicatat ke `localStorage` via `pushHistory`).
+- [x] **UI Settings Engine Health**: indikator visual status & skor sukses per engine (`Nezumi`, `Jerexd`).
+- [x] **PWA installable & offline shell**: Service Worker (`public/sw.js`) dibuat & terintegrasi.
+- [x] **Porting skraper Mori Engine**: `src/engines/media/mori.ts` dibuat untuk platform prioritas utama (**Pixiv** via `pixiv.re`, **Apple Music** via iTunes API, **Bandcamp** MP3 audio stream, **X / Twitter**, **Facebook**, dan **Threads**). Terdaftar sebagai engine utama di `mediaEngines` registry.
 
 ### 🟢 Nice to have
 - [ ] PDF exporter galeri (seperti Mori).

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { torrentManager, type TorrentProgress } from '../engines/torrent/webtorrent'
+import { pushHistory } from '../lib/storage'
 
 export interface ActiveTorrent {
   key: string
@@ -10,10 +11,26 @@ export function useTorrent() {
   const [active, setActive] = useState<ActiveTorrent[]>([])
   const pending = useRef<Map<string, { time: number; state: TorrentProgress }>>(new Map())
   const raf = useRef<number>(0)
+  const recorded = useRef<Set<string>>(new Set())
 
-  // Flush satu kali per frame (kasitas update UI diringankan).
+  // Flush satu kali per frame (kapasitas update UI diringankan).
   const scheduleFlush = useCallback((key: string, state: TorrentProgress) => {
     pending.current.set(key, { time: performance.now(), state })
+
+    if (state.done && !recorded.current.has(key)) {
+      recorded.current.add(key)
+      pushHistory({
+        kind: 'torrent',
+        platform: 'Torrent (P2P)',
+        title: state.name || 'WebTorrent Download',
+        thumbnail: null,
+        source: key,
+        format: 'torrent',
+        engine: 'WebTorrent',
+        status: 'done',
+      })
+    }
+
     if (raf.current) return
     raf.current = requestAnimationFrame(() => {
       raf.current = 0

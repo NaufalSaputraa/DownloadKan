@@ -21,7 +21,7 @@ const SETTINGS_KEY = 'dk.settings'
 const HISTORY_KEY = 'dk.history.v1'
 
 export const DEFAULT_SETTINGS: Settings = {
-  jerexdKey: '',
+  jerexdKey: 'JEREXD_API_KEY_TERHAPUS',
   defaultFormat: 'mp4',
   historyLimit: 50,
 }

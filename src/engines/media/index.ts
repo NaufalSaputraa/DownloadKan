@@ -1,9 +1,10 @@
 import { detectKind } from '../../utils/url-detect'
+import { moriEngine } from './mori'
 import { nezumiEngine } from './nezumi'
 import { jerexdEngine } from './jerexd'
 import type { MediaEngine, MediaResult } from './types'
 
-export const mediaEngines: MediaEngine[] = [nezumiEngine, jerexdEngine]
+export const mediaEngines: MediaEngine[] = [moriEngine, nezumiEngine, jerexdEngine]
 
 export type * from './types'
 
@@ -39,6 +40,20 @@ function orderByHealth(engines: MediaEngine[]): MediaEngine[] {
 }
 export function markEngineSuccess(id: string): void {
   healthScore.set(id, (healthScore.get(id) ?? 0) + 1)
+}
+
+export interface EngineHealth {
+  id: string
+  name: string
+  score: number
+}
+
+export function getEngineHealth(): EngineHealth[] {
+  return mediaEngines.map((e) => ({
+    id: e.id,
+    name: e.name,
+    score: healthScore.get(e.id) ?? 0,
+  }))
 }
 
 export class MediaRoutingError extends Error {

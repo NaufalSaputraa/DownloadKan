@@ -76,20 +76,35 @@ export function MediaResult({ result }: { result: MediaResult }) {
                 ))}
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <a
                   href={item.url}
-                  download
+                  download={result.title ? `${result.title.replace(/[^\w\s-]/g, '_').slice(0, 50)}.${item.type}` : true}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)]"
+                  title="Klik untuk mengunduh langsung atau ditangkap oleh IDM / ABDM / Download Manager"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   Unduh {item.type}
                 </a>
-                <span className="font-mono text-xs text-ink-faint">{item.url ? '(langsung dari sumber)' : ''}</span>
+
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(item.url)
+                    alert('Tautan direct berhasil disalin! Silakan paste di IDM / ABDM.')
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-glass-border bg-glass px-4 py-2.5 text-xs text-ink-muted transition-colors hover:text-ink"
+                  title="Salin URL langsung untuk di-paste di IDM / ABDM / Aria2"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="1.8" />
+                  </svg>
+                  Salin Tautan (IDM/ABDM)
+                </button>
               </div>
             </div>
           )}
