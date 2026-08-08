@@ -48,8 +48,14 @@ npm run pages:deploy
 
 ## 3. Environment / Config
 
-- **Tidak ada env wajib untuk runtime** (SPA statis). Key media diambil dari `localStorage` user.
-- Optional `.dev.vars` (lokal) hanya untuk testing — jangan di-commit.
+- **`VITE_JEREXD_DEFAULT_KEY`** (wajib untuk produksi): key Jerexd default (fallback). SPA membaca key
+  dari `localStorage` user; jika user belum mengisi key sendiri, dipakai key ini. **Set sebagai
+  environment variable** di Cloudflare Pages → **Settings → Environment variables → Production**
+  (nama persis: `VITE_JEREXD_DEFAULT_KEY`), lalu build & deploy ulang agar key ter-bundle ke JS.
+  Lokal: isi di `.env` (jangan di-commit; `.env.example` sebagai template).
+- `TELEGRAM_BOT_TOKEN` (secret, opsional): hanya untuk bot Telegram webhook — set via
+  `npx wrangler pages secret put TELEGRAM_BOT_TOKEN`.
+- Tidak ada env runtime lain yang wajib.
 
 ---
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { AudioQualitySetting, Settings } from '../lib/storage'
+import { DEFAULT_JEREXD_KEY } from '../lib/storage'
 import { getEngineHealth } from '../engines/media'
 
 interface Props {
@@ -17,7 +18,9 @@ const QUALITY_OPTIONS: Array<{ id: AudioQualitySetting; label: string; desc: str
 ]
 
 export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
-  const [draft, setDraft] = useState(settings.jerexdKey)
+  // Kosongkan draft bila memakai key default, agar field tampak "belum diisi".
+  const usingDefault = !settings.jerexdKey || settings.jerexdKey === DEFAULT_JEREXD_KEY
+  const [draft, setDraft] = useState(usingDefault ? '' : settings.jerexdKey)
   const [saved, setSaved] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -26,7 +29,9 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
   const selectedQuality = QUALITY_OPTIONS.find((q) => q.id === (settings.audioQuality ?? 'flac')) ?? QUALITY_OPTIONS[0]
 
   const save = () => {
-    onChange({ jerexdKey: draft.trim() })
+    // Kosong → pakai key default (jangan simpan override). Isi → override.
+    const finalKey = draft.trim() ? draft.trim() : ''
+    onChange({ jerexdKey: finalKey })
     setSaved(true)
     window.setTimeout(() => {
       setSaved(false)

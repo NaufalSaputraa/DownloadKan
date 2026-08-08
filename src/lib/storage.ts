@@ -23,6 +23,13 @@ export interface HistoryItem {
 const SETTINGS_KEY = 'dk.settings'
 const HISTORY_KEY = 'dk.history.v1'
 
+/**
+ * Key Jerexd default (fallback) — disuntikkan saat build via env var
+ * `VITE_JEREXD_DEFAULT_KEY` (lokal: `.env`; produksi: env var Cloudflare Pages).
+ * Jika user mengisi key sendiri di Settings, key itu yang dipakai (override).
+ */
+export const DEFAULT_JEREXD_KEY = import.meta.env.VITE_JEREXD_DEFAULT_KEY?.trim() ?? ''
+
 export const DEFAULT_SETTINGS: Settings = {
   jerexdKey: '',
   defaultFormat: 'mp4',
@@ -42,7 +49,9 @@ function safeGet<T>(key: string, fallback: T): T {
 
 export function getSettings(): Settings {
   const loaded = safeGet<Partial<Settings>>(SETTINGS_KEY, {})
-  return { ...DEFAULT_SETTINGS, ...loaded }
+  // Default key dipakai jika user belum pernah menyimpan key sendiri.
+  const jerexdKey = loaded.jerexdKey?.trim() ? loaded.jerexdKey.trim() : DEFAULT_JEREXD_KEY
+  return { ...DEFAULT_SETTINGS, ...loaded, jerexdKey }
 }
 
 export function saveSettings(patch: Partial<Settings>): Settings {

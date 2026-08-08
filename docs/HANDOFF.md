@@ -141,7 +141,9 @@ Jangan hapus/hapus konfigurasi ini tanpa tahu persis apa yang kamu lakukan.
 ## 7. Konvensi & Aturan (Ringkas — detail di `AGENTS.md`)
 
 - Bahasa respons & komentar kode: **Bahasa Indonesia**; nama variabel/fungsi English.
-- **Jangan pernah commit API key / secret** — key user (Jerexd) disimpan di localStorage lewat Settings.
+- **Jangan pernah commit API key / secret.** Key Jerexd default diambil dari env var
+  `VITE_JEREXD_DEFAULT_KEY` (lokal: `.env`; produksi: env var Cloudflare) — bukan hardcode.
+  User yang mengisi key sendiri di Settings akan **override** key default via localStorage.
 - UI: React + Tailwind, komponen modular di `src/components/`.
 - Engine baru harus implement kontrak `MediaEngine` (`src/engines/media/types.ts`) + daftar di registry.
 - Sebelum mulai tugas: `uteke_recall` namespace `linkdownloader`; setelah selesai: `uteke_remember`
@@ -152,7 +154,12 @@ Jangan hapus/hapus konfigurasi ini tanpa tahu persis apa yang kamu lakukan.
 
 ## 8. Yang Belum / Harus Dilakukan (TODO)
 
-### 🔴 Deploy (tinggal 1 langkah besar)
+### 🔴 Deploy (set env var default key lalu redeploy)
+
+- [ ] **`VITE_JEREXD_DEFAULT_KEY`** harus di-set di Cloudflare Pages → **Settings → Environment
+      variables → Production** (key Jerexd default; dipakai bila user belum isi key sendiri).
+      Setelah set, **build & deploy ulang** agar key ter-bundle ke JS. Tanpa ini, default key kosong
+      di produksi (lokal memakai `.env`).
 - [ ] `npx wrangler login` (akun Cloudflare user) lalu `npm run pages:deploy`
       → project `downloadkan` di `*.pages.dev`.
 - [ ] Setelah deploy: verifikasi `_headers` (CSP), proxy media, torrent search di domain live.
