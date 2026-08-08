@@ -26,10 +26,8 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          # Dikonsumsi Vite saat build → ter-bundle ke JS.
-          # Set di GitHub → Settings → Secrets and variables → Actions
-          VITE_JEREXD_DEFAULT_KEY: ${{ secrets.VITE_JEREXD_DEFAULT_KEY }}
+        # TIDAK ada VITE_* — key Jerexd default tidak pernah masuk bundle.
+        # Key default disuntikkan server-side oleh CF Pages Function (secret JEREXD_API_KEY).
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
@@ -39,3 +37,6 @@ jobs:
           projectName: downloadkan
           directory: dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # Key Jerexd default di-deploy sebagai secret Pages (server-side, tidak terekspos).
+          secrets: |
+            JEREXD_API_KEY ${{ secrets.JEREXD_API_KEY }}

@@ -162,10 +162,13 @@ async function fetchDeezer(url: string, jerexdKey: string): Promise<MediaResult>
     downloads.push({ type: 'Audio Preview 30 Detik (MP3)', url: json.preview })
   }
 
-  // Coba Jerexd untuk full song download (FLAC/MP3 320) via aio
-  if (jerexdKey) {
+  // Coba Jerexd untuk full song download (FLAC/MP3 320) via aio.
+  // Key default disembunyikan server-side — frontend hanya kirim apikey bila user override.
+  {
     try {
-      const endpoint = buildProxyUrl('jerexd', 'api/downloader/aio', { apikey: jerexdKey, url })
+      const params: Record<string, string> = { url }
+      if (jerexdKey?.trim()) params.apikey = jerexdKey.trim()
+      const endpoint = buildProxyUrl('jerexd', 'api/downloader/aio', params)
       const jRes = await fetch(endpoint)
       const jJson = (await jRes.json()) as {
         downloadUrl?: string

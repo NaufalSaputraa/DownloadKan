@@ -116,7 +116,7 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                   )}
                 </div>
                 <div className="mt-2 rounded-xl bg-glass-2 p-2.5 text-[11px] leading-relaxed text-ink-muted">
-                  <span className="font-semibold text-ink">Catatan API Key:</span> Kosongkan untuk memakai <span className="font-mono text-ink">API Key Default</span> (kuota 100 request/hari). Jika kamu mengisi API Key pribadi, key kamu akan otomatis menimpa key default.
+                  <span className="font-semibold text-ink">Catatan API Key:</span> Kosongkan untuk memakai <span className="font-mono text-ink">Key Default</span> (disuntikkan server-side, tidak tampil di browser). Jika kamu mengisi API Key pribadi, key kamu akan otomatis menimpa key default.
                 </div>
               </div>
 

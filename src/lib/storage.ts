@@ -24,11 +24,12 @@ const SETTINGS_KEY = 'dk.settings'
 const HISTORY_KEY = 'dk.history.v1'
 
 /**
- * Key Jerexd default (fallback) — disuntikkan saat build via env var
- * `VITE_JEREXD_DEFAULT_KEY` (lokal: `.env`; produksi: env var Cloudflare Pages).
- * Jika user mengisi key sendiri di Settings, key itu yang dipakai (override).
+ * Key Jerexd default TIDAK disimpan di bundle (client-side) — untuk keamanan,
+ * key default di-inject server-side oleh Cloudflare Pages Function (secret
+ * `JEREXD_API_KEY`). Frontend hanya menyimpan key user sendiri (override).
+ * Di dev lokal, key default disuntikkan oleh Vite dev-proxy (vite.config.ts).
  */
-export const DEFAULT_JEREXD_KEY = import.meta.env.VITE_JEREXD_DEFAULT_KEY?.trim() ?? ''
+export const DEFAULT_JEREXD_KEY = ''
 
 export const DEFAULT_SETTINGS: Settings = {
   jerexdKey: '',
@@ -49,9 +50,8 @@ function safeGet<T>(key: string, fallback: T): T {
 
 export function getSettings(): Settings {
   const loaded = safeGet<Partial<Settings>>(SETTINGS_KEY, {})
-  // Default key dipakai jika user belum pernah menyimpan key sendiri.
-  const jerexdKey = loaded.jerexdKey?.trim() ? loaded.jerexdKey.trim() : DEFAULT_JEREXD_KEY
-  return { ...DEFAULT_SETTINGS, ...loaded, jerexdKey }
+  // User override disimpan di localStorage; tanpa itu → kosong → server inject default.
+  return { ...DEFAULT_SETTINGS, ...loaded }
 }
 
 export function saveSettings(patch: Partial<Settings>): Settings {

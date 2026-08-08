@@ -45,12 +45,13 @@ export const jerexdEngine: MediaEngine = {
   name: 'Jerexd',
   supports: () => true,
   async fetch(url, { jerexdKey }): Promise<MediaResult> {
-    if (!jerexdKey) throw new JerexdError('Butuh API key Jerexd. Isi di Pengaturan.')
     const slug = pickEndpoint(url)
-    const endpoint = buildProxyUrl('jerexd', `api/downloader/${slug}`, {
-      url,
-      apikey: jerexdKey,
-    })
+    // Key default disembunyikan server-side (CF secret). Frontend hanya mengirim
+    // apikey bila USER memasukkan key sendiri (override). Tanpa apikey, CF Function
+    // menyuntikkan secret JEREXD_API_KEY.
+    const params: Record<string, string> = { url }
+    if (jerexdKey?.trim()) params.apikey = jerexdKey.trim()
+    const endpoint = buildProxyUrl('jerexd', `api/downloader/${slug}`, params)
 
     let res: Response
     try {

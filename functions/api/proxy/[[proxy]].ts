@@ -6,7 +6,10 @@
  * Lokal: `npm run pages:dev` (wrangler) atau `npm run dev` (Vite dev-proxy di vite.config.ts).
  */
 
-interface Env {}
+interface Env {
+  /** Key Jerexd default — secret server-side. Dipakai bila user tidak mengirim apikey sendiri. */
+  JEREXD_API_KEY?: string
+}
 
 const UPSTREAMS: Record<string, string> = {
   nezumi: 'https://api.nezumi.eu.cc',
@@ -14,7 +17,7 @@ const UPSTREAMS: Record<string, string> = {
   deezer: 'https://api.deezer.com',
 }
 
-export const onRequest: PagesFunction<Env> = async ({ request, params }) => {
+export const onRequest: PagesFunction<Env> = async ({ request, params, env }) => {
   const dynamic = params['proxy']
   const path = Array.isArray(dynamic) ? dynamic.join('/') : String(dynamic ?? '')
   const [target, ...rest] = path.split('/')
@@ -28,8 +31,17 @@ export const onRequest: PagesFunction<Env> = async ({ request, params }) => {
   }
 
   const apiPath = rest.join('/')
-  const qs = request.url.includes('?') ? `?${request.url.split('?')[1]}` : ''
-  const targetUrl = `${upstream}/${apiPath}${qs}`
+  const url = new URL(request.url)
+  const params2 = new URLSearchParams(url.search)
+
+  // Sembunyikan key default: jika user tidak mengirim apikey, injeksi dari secret server-side.
+  // (User yang mengisi key sendiri tetap memakai key mereka — override.)
+  if (target === 'jerexd' && !params2.has('apikey') && env.JEREXD_API_KEY) {
+    params2.set('apikey', env.JEREXD_API_KEY)
+  }
+
+  const qs = params2.toString()
+  const targetUrl = `${upstream}/${apiPath}${qs ? `?${qs}` : ''}`
 
   const upstreamRes = await fetch(targetUrl, {
     method: request.method,

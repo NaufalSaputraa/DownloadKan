@@ -1,10 +1,6 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Key Jerexd default (fallback) — diisi via `.env` lokal / env var Cloudflare Pages saat build. */
-  readonly VITE_JEREXD_DEFAULT_KEY?: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
+  // Tidak ada VITE_* yang dibutuhkan. Key Jerexd default disuntikkan server-side
+  // (CF secret `JEREXD_API_KEY` di produksi; `.env` → Vite dev-proxy di lokal).
 }
