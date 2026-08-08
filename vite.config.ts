@@ -121,6 +121,7 @@ export default defineConfig(({ mode }) => {
       // interop named/default (debug, streamx, err-code, mime, …) berfungsi.
       exclude: ['webtorrent'],
       include: [
+        'debug',
         'streamx',
         'err-code',
         'block-iterator',
@@ -139,6 +140,7 @@ export default defineConfig(({ mode }) => {
         'lt_donthave',
         'memory-chunk-store',
         'mime',
+        'mime/lite',
         'once',
         'parse-torrent',
         'pump',
