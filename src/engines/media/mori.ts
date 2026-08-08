@@ -1,6 +1,6 @@
 import type { MediaEngine, MediaResult } from './types'
 import { buildProxyUrl } from '../../lib/proxy'
-import { NEZUMI_PUBLIC_KEY, type NezumiPayload } from './nezumi'
+import { NEZUMI_PUBLIC_KEY, extractNezumiDownloads, type NezumiPayload } from './nezumi'
 
 /**
  * Engine Skraper Mori — platform spesifik prioritas utama:
@@ -214,23 +214,15 @@ async function fetchTikTok(url: string): Promise<MediaResult> {
     throw new MoriError('Respons TikTok bukan JSON')
   }
 
-  if (!res.ok || json.status === false || !json.result?.downloads?.length) {
+  const downloads = extractNezumiDownloads(json.result)
+  if (!res.ok || json.status === false || !downloads.length) {
     throw new MoriError(json.message ?? 'Gagal memproses TikTok HD')
   }
 
   const r = json.result
-  const downloads = (r.downloads ?? [])
-    .filter((d) => typeof d.url === 'string' && d.url)
-    .map((d, idx) => {
-      let label = d.type ?? 'Media'
-      if (/nowatermark|hd|mp4/i.test(label) || idx === 0) label = 'Video Full HD (No Watermark)'
-      else if (/music|audio|mp3/i.test(label)) label = 'Audio MP3 (HD)'
-      return { type: label, url: d.url as string }
-    })
-
   return {
-    title: r.title ?? 'TikTok Video Full HD',
-    thumbnail: r.thumbnail ?? null,
+    title: r?.title ?? r?.description ?? 'TikTok Video Full HD',
+    thumbnail: r?.thumbnail ?? r?.cover ?? null,
     platform: 'tiktok',
     sourceUrl: url,
     downloads,
