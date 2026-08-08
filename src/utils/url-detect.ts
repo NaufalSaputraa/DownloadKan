@@ -17,7 +17,7 @@ export type MediaPlatform =
   | 'bilibili'
   | 'unknown'
 
-export type DetectKind = 'media' | 'torrent' | 'unknown'
+export type DetectKind = 'media' | 'torrent' | 'search' | 'unknown'
 
 export interface DetectResult {
   kind: DetectKind
@@ -83,6 +83,10 @@ export function detectKind(input: string): DetectResult {
   if (/^https?:\/\//i.test(raw)) {
     const clean = stripTracking(raw)
     return { kind: 'media', platform: detectPlatform(clean), url: clean }
+  }
+
+  if (raw.length > 0) {
+    return { kind: 'search', platform: 'deezer', url: raw }
   }
 
   return { kind: 'unknown', platform: 'unknown', url: raw }

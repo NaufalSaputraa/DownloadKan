@@ -133,6 +133,7 @@ export default defineConfig({
     proxy: {
       '/api/proxy/nezumi': PROXY('https://api.nezumi.eu.cc'),
       '/api/proxy/jerexd': PROXY('https://api.jerexd.my.id'),
+      '/api/proxy/deezer': PROXY('https://api.deezer.com'),
     },
   },
 })

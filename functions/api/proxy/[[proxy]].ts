@@ -11,6 +11,7 @@ interface Env {}
 const UPSTREAMS: Record<string, string> = {
   nezumi: 'https://api.nezumi.eu.cc',
   jerexd: 'https://api.jerexd.my.id',
+  deezer: 'https://api.deezer.com',
 }
 
 export const onRequest: PagesFunction<Env> = async ({ request, params }) => {

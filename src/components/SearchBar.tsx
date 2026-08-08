@@ -19,7 +19,9 @@ export function SearchBar({ disabled, onSubmit }: Props) {
       ? 'torrent · magnet'
       : detection.kind === 'media'
         ? `media · ${detection.platform}`
-        : 'tempat tautan…'
+        : detection.kind === 'search'
+          ? 'musik · cari judul'
+          : 'tempat tautan…'
 
   const handlePaste = async () => {
     try {
@@ -63,7 +65,7 @@ export function SearchBar({ disabled, onSubmit }: Props) {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && value.trim() && !disabled) onSubmit(value.trim())
           }}
-          placeholder="Tempel tautan TikTok, IG, YouTube, atau magnet…"
+          placeholder="Tempel tautan media/magnet atau cari judul lagu/artis…"
           className="min-w-0 flex-1 bg-transparent font-mono text-sm text-ink outline-none placeholder:text-ink-faint"
           aria-label="Tautan atau magnet yang mau diunduh"
           autoCapitalize="off"

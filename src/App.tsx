@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { SearchBar } from './components/SearchBar'
 import { MediaResult } from './components/MediaResult'
 import { TorrentPanel } from './components/TorrentPanel'
+import { MusicSearchResults } from './components/MusicSearchResults'
 import { SettingsSheet } from './components/SettingsSheet'
 import { Toaster } from './components/ui/Toast'
 import { useMedia } from './hooks/useMedia'
@@ -113,6 +114,13 @@ function App() {
               {state.status === 'analyzing' && <SkeletonState />}
               {state.status === 'error' && <ErrorState message={state.error ?? ''} />}
               {state.status === 'done' && state.result && <MediaResult result={state.result} />}
+              {state.status === 'search_done' && state.searchResults && (
+                <MusicSearchResults
+                  query={state.searchQuery ?? ''}
+                  results={state.searchResults}
+                  onSelectTrack={(link) => handleSubmit(link)}
+                />
+              )}
               {state.status === 'idle' && <IdleHint />}
             </motion.div>
           ) : (

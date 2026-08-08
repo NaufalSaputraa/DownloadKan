@@ -4,7 +4,7 @@
  * production; Vite dev-proxy & wrangler di lokal). File unduhan akhir tetap langsung
  * dari CDN sumber — yang lewat proxy hanya JSON metadata.
  */
-export type ProxyTarget = 'nezumi' | 'jerexd'
+export type ProxyTarget = 'nezumi' | 'jerexd' | 'deezer'
 
 export function buildProxyUrl(target: ProxyTarget, apiPath: string, params: Record<string, string>): string {
   const qs = new URLSearchParams(params).toString()
