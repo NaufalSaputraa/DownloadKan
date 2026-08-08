@@ -52,10 +52,28 @@ body {
   color: var(--color-ink);
 }
 
-/* focus ring — instant, tidak dianimasi */
-:where(button, a, input, [tabindex]):focus-visible {
+/* focus ring — instant, tidak dianimasi untuk tombol & link */
+:where(button, a, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* search bar input — borderless di dalam glass container */
+.search-input,
+.search-input:focus,
+.search-input:focus-visible,
+.search-input:active {
+  outline: 0 !important;
+  outline-style: none !important;
+  outline-width: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* semua input: hapus outline default saat focus, tapi pertahankan border */
+input:focus-visible {
+  outline: none;
 }
 
 /* glass surface */

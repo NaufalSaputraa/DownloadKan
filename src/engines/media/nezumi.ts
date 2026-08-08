@@ -3,6 +3,32 @@ import { buildProxyUrl } from '../../lib/proxy'
 
 export const NEZUMI_PUBLIC_KEY = 'NezumiApi'
 
+/**
+ * Nezumi punya endpoint khusus per platform; auto-detect `/api/download`
+ * dipakai hanya untuk yang tanpa route khusus. Tambahkan di sini bila Nezumi
+ * menyediakan route baru.
+ */
+const NEZUMI_ROUTES: Array<[RegExp, string]> = [
+  [/youtube\.com|youtu\.be|music\.youtube\.com/i, 'youtube'],
+  [/instagram\.com|instagr\.am/i, 'instagram'],
+  [/twitter\.com|(^|\.)x\.com/i, 'twitter'],
+  [/facebook\.com|fb\.watch|fb\.com/i, 'facebook'],
+  [/tiktok\.com|douyin\.com|iesdouyin\.com/i, 'tiktok'],
+  [/open\.spotify\.com|spotify\.link/i, 'spotify'],
+  [/music\.apple\.com/i, 'applemusic'],
+  [/pinterest\.com|pin\.it/i, 'pinterest'],
+  [/bandcamp\.com/i, 'bandcamp'],
+  [/pixiv\.net/i, 'pixiv'],
+  [/threads\.net/i, 'threads'],
+]
+
+function pickNezumiRoute(url: string): string {
+  for (const [re, route] of NEZUMI_ROUTES) {
+    if (re.test(url)) return route
+  }
+  return 'download'
+}
+
 export interface NezumiPayload {
   status?: boolean
   creator?: string
@@ -53,7 +79,7 @@ export const nezumiEngine: MediaEngine = {
   name: 'Nezumi',
   supports: () => true,
   async fetch(url: string): Promise<MediaResult> {
-    const route = /tiktok|douyin/i.test(url) ? 'tiktok' : 'download'
+    const route = pickNezumiRoute(url)
     const endpoint = buildProxyUrl(
       'nezumi',
       `api/${route}`,

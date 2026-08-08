@@ -40,8 +40,9 @@ function orderByHealth(engines: MediaEngine[]): MediaEngine[] {
 }
 
 /**
- * Urutkan opsi unduhan agar Kualitas Tertinggi (4K / 1080p Full HD / FLAC Lossless / High-Res PNG)
- * SELALU berada di urutan pertama (index 0) dan menjadi pilihan default sistem.
+ * Urutkan opsi unduhan agar Kualitas Terbaik (video/audio) di urutan pertama,
+ * sedangkan cover/gambar (metadata) selalu di akhir. Ini memastikan tombol
+ * "Unduh" default mengarah ke media aktual, bukan gambar sampul.
  */
 function sortByHighestQuality(result: MediaResult): MediaResult {
   if (!result.downloads || result.downloads.length <= 1) return result
@@ -57,12 +58,17 @@ function sortByHighestQuality(result: MediaResult): MediaResult {
 
 function getQualityScore(typeLabel: string): number {
   const t = typeLabel.toLowerCase()
-  if (t.includes('4k') || t.includes('2160p') || t.includes('flac') || t.includes('1411')) return 100
-  if (t.includes('1080p') || t.includes('full hd') || t.includes('lossless') || t.includes('320')) return 90
-  if (t.includes('720p') || t.includes('hd') || t.includes('png') || t.includes('utama')) return 80
-  if (t.includes('192') || t.includes('128') || t.includes('mp3')) return 60
-  if (t.includes('480p') || t.includes('sd') || t.includes('pratinjau') || t.includes('preview')) return 30
+  // Gambar/cover = metadata, bukan media utama → selalu paling akhir.
+  if (t.includes('cover') || t.includes('art') || t.includes('jpg') || t.includes('jpeg') || t.includes('png') || t.includes('foto') || t.includes('gambar') || t.includes('thumbnail')) return -10
+  if (t.includes('no watermark') || t.includes('tanpa watermark')) return 95
   if (t.includes('watermark')) return 10
+  if (t.includes('4k') || t.includes('2160p') || t.includes('flac') || t.includes('1411')) return 100
+  if (t.includes('1080p') || t.includes('full hd') || t.includes('lossless') || t.includes('320') || t.includes('utuh')) return 90
+  // Video selalu di atas audio.
+  if (t.includes('720p') || t.includes('hd') || t.includes('video') || t.includes('mp4') || t.includes('webm')) return 80
+  if (t.includes('192') || t.includes('128') || t.includes('mp3') || t.includes('audio')) return 60
+  if (t.includes('480p') || t.includes('sd')) return 40
+  if (t.includes('pratinjau') || t.includes('preview')) return 30
   return 50
 }
 

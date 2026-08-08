@@ -132,9 +132,11 @@ async function fetchDeezer(url: string, jerexdKey: string): Promise<MediaResult>
     throw new MoriError('ID Lagu Deezer tidak ditemukan dari URL.')
   }
 
+  // Gunakan proxy untuk menghindari CORS
+  const deezerEndpoint = buildProxyUrl('deezer', `track/${trackId}`, {})
   let res: Response
   try {
-    res = await fetch(`https://api.deezer.com/track/${trackId}`)
+    res = await fetch(deezerEndpoint)
   } catch (err) {
     throw new MoriError(`Gagal menghubungi Deezer API (${(err as Error).message})`)
   }
@@ -155,21 +157,51 @@ async function fetchDeezer(url: string, jerexdKey: string): Promise<MediaResult>
   const cover = json.album?.cover_big ?? null
   const downloads: Array<{ type: string; url: string }> = []
 
+  // Preview 30 detik dari Deezer API (paling andal) — taruh paling depan.
+  if (json.preview) {
+    downloads.push({ type: 'Audio Preview 30 Detik (MP3)', url: json.preview })
+  }
+
+  // Coba Jerexd untuk full song download (FLAC/MP3 320) via aio
   if (jerexdKey) {
     try {
-      const endpoint = buildProxyUrl('jerexd', 'api/downloader/spotify', { apikey: jerexdKey, url })
+      const endpoint = buildProxyUrl('jerexd', 'api/downloader/aio', { apikey: jerexdKey, url })
       const jRes = await fetch(endpoint)
-      const jJson = (await jRes.json()) as { downloadUrl?: string }
-      if (jJson.downloadUrl) {
-        downloads.push({ type: 'Audio Lossless / 320 kbps (FLAC/MP3)', url: jJson.downloadUrl })
+      const jJson = (await jRes.json()) as {
+        downloadUrl?: string
+        status?: boolean
+        result?: unknown
+      }
+      if (typeof jJson.downloadUrl === 'string' && jJson.downloadUrl.startsWith('http')) {
+        downloads.push({ type: 'Audio Utuh (FLAC/MP3 320)', url: jJson.downloadUrl })
       }
     } catch {
-      // ignore fallback
+      // Jerexd gagal, lanjut ke fallback
     }
   }
 
-  if (json.preview) {
-    downloads.push({ type: 'Pratinjau Audio (MP3 320kbps Stream)', url: json.preview })
+  // Coba Nezumi sebagai fallback untuk full song — hanya untuk platform yang
+  // didukung Nezumi (deezer TIDAK didukung → tidak usah dipanggil).
+  if (!downloads.some((d) => d.type.includes('Utuh')) && !/deezer\.com/i.test(url)) {
+    try {
+      const nezEndpoint = buildProxyUrl('nezumi', 'api/download', { apikey: NEZUMI_PUBLIC_KEY, url })
+      const nezRes = await fetch(nezEndpoint)
+      const nezJson = (await nezRes.json()) as NezumiPayload
+      if (nezJson.status && nezJson.result) {
+        const nezDownloads = extractNezumiDownloads(nezJson.result)
+        if (nezDownloads.length) {
+          downloads.push(...nezDownloads)
+        }
+      }
+    } catch {
+      // Nezumi juga gagal, lanjut ke preview
+    }
+  }
+
+  // Cover art HD sebagai bonus
+  if (cover) {
+    const hdCover = cover.replace(/\/\d+x\d+/, '/1000x1000')
+    downloads.push({ type: 'Cover Art HD (JPG)', url: hdCover })
   }
 
   if (!downloads.length) {
@@ -182,7 +214,7 @@ async function fetchDeezer(url: string, jerexdKey: string): Promise<MediaResult>
     platform: 'deezer',
     sourceUrl: url,
     downloads,
-    engine: 'Mori (Deezer Lossless)',
+    engine: 'Mori (Deezer)',
   }
 }
 

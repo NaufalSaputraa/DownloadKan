@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { DEEZLOAD_BOT, telegramBotDeepLink } from '../lib/telegram'
 
 export interface MusicTrackItem {
   id: number
@@ -58,7 +59,7 @@ export function MusicSearchResults({ query, results, onSelectTrack }: Props) {
           <p className="font-mono text-xs text-ink-faint">Query: &quot;{query}&quot; · Halaman {page} dari {totalPages}</p>
         </div>
         <span className="rounded-full bg-glass-2 px-3 py-1 font-mono text-xs text-accent">
-          Full Song FLAC & MP3
+          MP3 · FLAC · Preview
         </span>
       </div>
 
@@ -123,13 +124,26 @@ export function MusicSearchResults({ query, results, onSelectTrack }: Props) {
               <button
                 onClick={() => onSelectTrack(track.link)}
                 className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-ink px-4 py-2.5 text-xs font-medium text-paper transition-transform hover:scale-105 hover:bg-[oklch(86%_0.008_260)]"
-                title="Unduh file audio lagu utuh versi FLAC Lossless / MP3 320kbps"
+                title="Analisis & unduh audio lagu ini. Ketersediaan format (full MP3/FLAC atau preview 30 detik) tergantung engine & kunci."
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                Unduh Lagu Utuh (FLAC/MP3)
+                Unduh Audio
               </button>
+
+              <a
+                href={telegramBotDeepLink(DEEZLOAD_BOT, `${track.artist} - ${track.title}`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-2.5 text-xs font-medium text-sky-300 transition-colors hover:bg-sky-400/20"
+                title={`Unduh penuh lewat bot Telegram ${DEEZLOAD_BOT}`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M21.9 4.1 18.8 19.3c-.2 1-.8 1.2-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L7.5 12.5 2.8 11c-1-.3-1-1 .2-1.5l17.6-6.8c.9-.3 1.6.2 1.3 1.4Z" />
+                </svg>
+                Telegram
+              </a>
             </div>
           </motion.div>
         ))}

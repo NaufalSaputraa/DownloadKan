@@ -3,9 +3,15 @@ import { buildProxyUrl } from '../../lib/proxy'
 
 /** Peta pola URL → slug endpoint Jerexd (yang terverifikasi ada). */
 const SLUGS: [RegExp, string][] = [
-  [/tiktok|douyin|pinterest|threads|rednote|pixiv/i, 'aio'],
+  [/open\.spotify\.com|spotify\.link/i, 'spotify'],
+  [/tiktok\.com|douyin\.com|iesdouyin\.com/i, 'tiktok'],
+  [/instagram\.com|instagr\.am/i, 'instagram'],
+  [/pinterest|pin\.it/i, 'pin'],
+  [/rednote|xhslink|xiaohongshu/i, 'rednote'],
+  [/pixiv\.net/i, 'pixiv'],
   [/twitter|x\.com/i, 'ssstweet'],
   [/facebook|fb\./i, 'facebook'],
+  [/threads\.net/i, 'threads'],
   [/soundcloud\.com/i, 'soundcloud'],
 ]
 
@@ -19,6 +25,13 @@ function pickEndpoint(url: string): string {
 interface JerexdResponse {
   status?: boolean | string
   statusCode?: number
+  title?: string
+  artist?: string
+  thumbnail?: string
+  /** beberapa endpoint (spotify, fastdl) meletakkan URL di root */
+  downloadUrl?: string
+  /** tiktok meletakkan array links di root */
+  links?: Array<{ label?: string; url?: string }>
   result?: {
     title?: string
     download_file?: string
@@ -56,16 +69,27 @@ export const jerexdEngine: MediaEngine = {
     if (res.status === 401) throw new JerexdError('API key Jerexd tidak valid (401).')
     if (!res.ok) throw new JerexdError(`Jerexd error ${res.status}`)
 
-    const r = json.result
-    if (!r) throw new JerexdError(`Jerexd tidak mengembalikan hasil (${json.statusCode})`)
+    // Jerexd spotify/fastdl menaruh downloadUrl di root — preferensikan itu.
+    const rootDownloads: Array<{ type: string; url: string }> = []
+    if (typeof json.downloadUrl === 'string' && json.downloadUrl.startsWith('http')) {
+      rootDownloads.push({ type: 'Audio Utuh (FLAC/MP3 320)', url: json.downloadUrl })
+    }
+    // Jerexd tiktok menaruh array links di root ({label, url}).
+    if (Array.isArray(json.links)) {
+      json.links.forEach((l) => {
+        if (typeof l?.url === 'string' && l.url.startsWith('http')) {
+          rootDownloads.push({ type: l.label ?? 'Media', url: l.url })
+        }
+      })
+    }
 
-    // Jerexd .aio: result bisa string (direct media URL) atau {media: string | {…}} atau array.
-    const downloads = normalizeDownloads(r)
-    if (!downloads.length) throw new JerexdError('Jerexd: hasil tanpa link unduhan.')
+    const r = json.result
+    const downloads = rootDownloads.length ? rootDownloads : normalizeDownloads(r)
+    if (!downloads.length) throw new JerexdError(`Jerexd tidak mengembalikan hasil (${json.statusCode})`)
 
     return {
-      title: typeof r === 'string' ? 'Media' : (r.title ?? 'Media'),
-      thumbnail: null,
+      title: json.title ?? (typeof r === 'string' ? 'Media' : (r?.title ?? 'Media')),
+      thumbnail: json.thumbnail ?? null,
       platform: 'unknown',
       sourceUrl: url,
       downloads,

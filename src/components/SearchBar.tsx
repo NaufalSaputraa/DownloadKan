@@ -66,7 +66,7 @@ export function SearchBar({ disabled, onSubmit }: Props) {
             if (e.key === 'Enter' && value.trim() && !disabled) onSubmit(value.trim())
           }}
           placeholder="Tempel tautan media/magnet atau cari judul lagu/artis…"
-          className="min-w-0 flex-1 bg-transparent font-mono text-sm text-ink border-none outline-none focus:outline-none focus:ring-0 shadow-none placeholder:text-ink-faint"
+          className="search-input min-w-0 flex-1 bg-transparent font-mono text-sm text-ink placeholder:text-ink-faint"
           aria-label="Tautan atau magnet yang mau diunduh"
           autoCapitalize="off"
           autoCorrect="off"

@@ -1,6 +1,46 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import type { MediaResult } from '../engines/media/types'
+import type { MediaResult, MediaDownload } from '../engines/media/types'
+import { DEEZLOAD_BOT, telegramBotDeepLink } from '../lib/telegram'
+
+/**
+ * Tentukan extension file yang benar dari type label dan URL.
+ * Type label bisa berupa "Video Full HD (No Watermark)" — bukan extension valid.
+ */
+function guessExtension(item: MediaDownload): string {
+  const t = item.type.toLowerCase()
+  const u = item.url.toLowerCase()
+
+  // Cek URL path untuk extension nyata
+  try {
+    const pathname = new URL(u).pathname
+    const ext = pathname.split('.').pop()?.split('?')[0] ?? ''
+    if (['mp4', 'webm', 'mkv', 'mov', 'mp3', 'flac', 'wav', 'ogg', 'aac', 'm4a', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'pdf'].includes(ext)) {
+      return ext
+    }
+  } catch { /* URL tidak valid, lanjut */ }
+
+  // Deteksi dari type label
+  if (t.includes('flac') || t.includes('lossless')) return 'flac'
+  if (t.includes('mp3') || t.includes('audio') || t.includes('music') || t.includes('sound')) return 'mp3'
+  if (t.includes('m4a') || t.includes('aac')) return 'm4a'
+  if (t.includes('wav')) return 'wav'
+  if (t.includes('png')) return 'png'
+  if (t.includes('jpg') || t.includes('jpeg') || t.includes('gambar') || t.includes('cover') || t.includes('foto')) return 'jpg'
+  if (t.includes('webp')) return 'webp'
+  if (t.includes('gif')) return 'gif'
+  if (t.includes('webm')) return 'webm'
+  if (t.includes('video') || t.includes('mp4') || t.includes('hd') || t.includes('sd')) return 'mp4'
+  return 'mp4' // default
+}
+
+function buildDownloadFilename(title: string, item: MediaDownload): string {
+  const safeName = title
+    ? title.replace(/[^\w\s\u00C0-\u024F\u4E00-\u9FFF\uAC00-\uD7AF-]/g, '_').replace(/_+/g, '_').slice(0, 60).trim()
+    : 'download'
+  const ext = guessExtension(item)
+  return `${safeName}.${ext}`
+}
 
 export function MediaResult({ result }: { result: MediaResult }) {
   const [active, setActive] = useState(0)
@@ -99,7 +139,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
               <div className="flex max-w-full flex-wrap items-center gap-2.5 pt-1 overflow-hidden">
                 <a
                   href={item.url}
-                  download={result.title ? `${result.title.replace(/[^\w\s-]/g, '_').slice(0, 50)}.${item.type}` : true}
+                  download={buildDownloadFilename(result.title, item)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)]"
@@ -125,6 +165,22 @@ export function MediaResult({ result }: { result: MediaResult }) {
                   </svg>
                   Salin Tautan (IDM/ABDM)
                 </button>
+
+                {/* Unduh penuh via bot Telegram (untuk lagu yang engine lokal tak punya full song) */}
+                {/deezer|spotify|apple|soundcloud|music|audio|mp3/i.test(`${result.platform} ${item.type}`) && (
+                  <a
+                    href={telegramBotDeepLink(DEEZLOAD_BOT, result.title)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-2.5 text-xs font-medium text-sky-300 transition-colors hover:bg-sky-400/20"
+                    title={`Unduh lagu ini lewat bot Telegram ${DEEZLOAD_BOT}`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M21.9 4.1 18.8 19.3c-.2 1-.8 1.2-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L7.5 12.5 2.8 11c-1-.3-1-1 .2-1.5l17.6-6.8c.9-.3 1.6.2 1.3 1.4Z" />
+                    </svg>
+                    Telegram
+                  </a>
+                )}
 
                 {/* PDF Exporter untuk Galeri / Slide Foto */}
                 {result.downloads.length > 1 && (

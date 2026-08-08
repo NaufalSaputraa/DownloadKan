@@ -159,7 +159,6 @@ Jangan hapus/hapus konfigurasi ini tanpa tahu persis apa yang kamu lakukan.
 
 ### 🟡 Peningkatan yang masuk akal
 - [x] **Dukungan IDM / ABDM / Download Manager**: link unduhan direct dengan atribut `download` & tombol "Salin Tautan" instan.
-- [x] **Key Jerexd Default**: set key `JEREXD_API_KEY_TERHAPUS` sebagai default fallback.
 - [x] **History torrent** penuh (otomatis dicatat ke `localStorage` via `pushHistory`).
 - [x] **UI Settings Engine Health**: indikator visual status & skor sukses per engine (`Nezumi`, `Jerexd`).
 - [x] **PWA installable & offline shell**: Service Worker (`public/sw.js`) dibuat & terintegrasi.

@@ -26,7 +26,7 @@ export function useMedia() {
 
     if (detection.kind === 'search') {
       try {
-        const endpoint = buildProxyUrl('deezer', 'search', { q: detection.url, limit: '10' })
+        const endpoint = buildProxyUrl('deezer', 'search', { q: detection.url, limit: '25' })
         const res = await fetch(endpoint)
         const json = (await res.json()) as {
           data?: Array<{
