@@ -125,6 +125,21 @@ export function MediaResult({ result }: { result: MediaResult }) {
                   </svg>
                   Salin Tautan (IDM/ABDM)
                 </button>
+
+                {/* PDF Exporter untuk Galeri / Slide Foto */}
+                {result.downloads.length > 1 && (
+                  <button
+                    onClick={() => exportGalleryToPdf(result)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent-soft px-4 py-2.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
+                    title="Gabungkan galeri foto menjadi 1 file PDF"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Ekspor Galeri ke PDF ({result.downloads.length} Item)
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -132,4 +147,59 @@ export function MediaResult({ result }: { result: MediaResult }) {
       </div>
     </motion.article>
   )
+}
+
+function exportGalleryToPdf(result: MediaResult) {
+  const win = window.open('', '_blank')
+  if (!win) {
+    alert('Izinkan popup di browser-mu untuk mengekspor PDF galeri.')
+    return
+  }
+
+  const safeTitle = result.title.replace(/[^\w\s-]/g, '')
+  const html = `
+    <!DOCTYPE html>
+    <html lang="id">
+      <head>
+        <meta charset="utf-8">
+        <title>${safeTitle} - Galeri PDF DownloadKan</title>
+        <style>
+          @page { size: A4 portrait; margin: 15mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #fff; color: #111; margin: 0; padding: 20px; }
+          .header { border-bottom: 2px solid #eee; padding-bottom: 12px; margin-bottom: 24px; }
+          h1 { font-size: 20px; margin: 0 0 6px 0; color: #0b0c0f; }
+          .meta { font-size: 12px; color: #666; font-family: monospace; }
+          .page-item { page-break-after: always; text-align: center; margin-bottom: 30px; }
+          .page-item:last-child { page-break-after: auto; }
+          img { max-width: 100%; max-height: 230mm; object-fit: contain; border-radius: 8px; border: 1px solid #eee; }
+          .caption { font-size: 11px; color: #888; margin-top: 8px; font-family: monospace; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${result.title}</h1>
+          <div class="meta">DownloadKan Gallery Export · Platform: ${result.platform.toUpperCase()} · Total ${result.downloads.length} Items</div>
+        </div>
+        ${result.downloads
+          .map(
+            (item, idx) => `
+          <div class="page-item">
+            <img src="${item.url}" alt="Item ${idx + 1}" />
+            <div class="caption">Halaman ${idx + 1} dari ${result.downloads.length} (${item.type})</div>
+          </div>
+        `,
+          )
+          .join('')}
+        <script>
+          window.onload = () => {
+            setTimeout(() => {
+              window.print();
+            }, 600);
+          };
+        </script>
+      </body>
+    </html>
+  `
+  win.document.write(html)
+  win.document.close()
 }

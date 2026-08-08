@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { SearchBar } from './components/SearchBar'
 import { MediaResult } from './components/MediaResult'
@@ -18,12 +18,26 @@ function App() {
   const { settings, update } = useSettings()
   const { toasts, push, dismiss } = useToast()
 
-  const handleSubmit = (url: string) => {
-    if (state.status === 'analyzing') return
-    void analyze(url, settings.jerexdKey).catch((e: unknown) => {
-      push((e as Error).message, 'error')
-    })
-  }
+  const handleSubmit = useCallback(
+    (url: string) => {
+      if (state.status === 'analyzing') return
+      void analyze(url, settings.jerexdKey).catch((e: unknown) => {
+        push((e as Error).message, 'error')
+      })
+    },
+    [state.status, analyze, settings.jerexdKey, push],
+  )
+
+  // Tangani tautan masukan dari PWA Share Target (?url=... atau ?text=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const shared = params.get('url') || params.get('text') || params.get('title')
+    if (shared && /^https?:\/\//i.test(shared.trim())) {
+      handleSubmit(shared.trim())
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [handleSubmit])
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 pb-16 pt-8 sm:px-6">
