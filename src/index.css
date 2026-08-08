@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/*
+ * Hallmark · genre: atmospheric · macrostructure: Marquee Hero · theme: instrumental-glass
+ * enrichment: none (typography only) · nav: N5 floating pill · footer: Ft5 statement
+ * Tokens seluruhnya OKLCH; glass dipakai sebagai kedalaman lapisan, bukan dekorasi.
+ */
+
+@theme {
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --color-ink: oklch(93% 0.005 260);
+  --color-ink-muted: oklch(74% 0.01 260);
+  --color-ink-faint: oklch(58% 0.012 260);
+  --color-paper: oklch(13% 0.014 261);
+  --color-paper-raise: oklch(17% 0.016 261);
+  --color-glass: oklch(100% 0 0 / 0.06);
+  --color-glass-2: oklch(100% 0 0 / 0.09);
+  --color-glass-border: oklch(100% 0 0 / 0.12);
+  --color-glass-border-soft: oklch(100% 0 0 / 0.07);
+  --color-accent: oklch(72% 0.13 258);
+  --color-accent-soft: oklch(72% 0.13 258 / 0.14);
+  --color-focus: oklch(72% 0.13 258);
+  --color-danger: oklch(66% 0.19 25);
+}
+
+html,
+body {
+  overflow-x: clip;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background-color: var(--color-paper);
+  background-image:
+    radial-gradient(52% 42% at 12% -6%, oklch(30% 0.04 255 / 0.5), transparent 62%),
+    radial-gradient(38% 34% at 96% 4%, oklch(28% 0.05 300 / 0.4), transparent 60%),
+    radial-gradient(46% 42% at 82% 108%, oklch(30% 0.05 230 / 0.32), transparent 60%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+}
+
+/* focus ring — instant, tidak dianimasi */
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* glass surface */
+.glass {
+  background: var(--color-glass);
+  border: 1px solid var(--color-glass-border);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  transition:
+    background-color 220ms var(--ease),
+    border-color 220ms var(--ease),
+    transform 220ms var(--ease);
+}
+
+.glass-2 {
+  background: var(--color-glass-2);
+  border: 1px solid var(--color-glass-border);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+@theme inline {
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

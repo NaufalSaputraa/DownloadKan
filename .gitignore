@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Env & secrets (TIDAK PERNAH commit)
+.env
+.env.*
+!.env.example
+
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+
+# Playwright MCP artifacts
+.playwright-mcp/
+dk-*.png
+
+# Agent tooling (autoskills & memory) — bukan source code
+.agent/
+.agents/
+.claude/
+.kiro/
+.opencode/
+skills-lock.json
+
+# Torrent cache & partial files
+.cache/
+*.part

@@ -1,0 +1,106 @@
+import { useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import type { Settings } from '../lib/storage'
+
+interface Props {
+  open: boolean
+  settings: Settings
+  onClose: () => void
+  onChange: (patch: Partial<Settings>) => void
+}
+
+export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
+  const [draft, setDraft] = useState(settings.jerexdKey)
+  const [saved, setSaved] = useState(false)
+
+  // sinkronkan draft bila data berubah di luar
+  if (!open && draft !== settings.jerexdKey) setDraft(settings.jerexdKey)
+
+  const save = () => {
+    onChange({ jerexdKey: draft.trim() })
+    setSaved(true)
+    window.setTimeout(() => {
+      setSaved(false)
+      onClose()
+    }, 600)
+  }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[70] bg-[oklch(10%_0.01_260/0.5)] backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pengaturan"
+            className="fixed inset-x-3 bottom-3 z-[80] mx-auto max-w-md"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="glass-2 rounded-[24px] p-6">
+              <div className="mb-1 flex items-center justify-between">
+                <h2 className="font-display text-xl text-ink">Pengaturan</h2>
+                <button
+                  onClick={onClose}
+                  className="rounded-full p-1.5 text-ink-faint transition-colors hover:bg-glass hover:text-ink"
+                  aria-label="Tutup"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="mb-4 max-w-sm text-sm text-ink-muted">
+                API key hanya tersimpan di browser-mu (localStorage). Tidak pernah dikirim ke server kami.
+              </p>
+
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-ink-faint">
+                  API key Jerexd
+                </span>
+                <input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && save()}
+                  placeholder="jere_…"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full rounded-2xl border border-glass-border bg-glass px-4 py-3 font-mono text-sm text-ink outline-none placeholder:text-ink-faint focus:border-accent"
+                />
+                <span className="mt-1.5 block text-xs text-ink-faint">
+                  Untuk engine fallback. Engine utama (Nezumi) gratis tanpa key.
+                </span>
+              </label>
+
+              <div className="mt-5 flex items-center gap-3">
+                <button
+                  onClick={save}
+                  className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-[oklch(86%_0.008_260)]"
+                >
+                  {saved ? 'Tersimpan ✓' : 'Simpan'}
+                </button>
+                <button
+                  onClick={onClose}
+                  className="rounded-full px-4 py-2.5 text-sm text-ink-muted transition-colors hover:text-ink"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
