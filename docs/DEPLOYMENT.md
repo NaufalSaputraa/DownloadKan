@@ -48,12 +48,12 @@ npm run pages:deploy
 
 ## 3. Environment / Config
 
-- **`VITE_JEREXD_DEFAULT_KEY`** (untuk produksi): key Jerexd default (fallback). Dibaca **saat build**
-  oleh Vite (di-inline ke bundle JS). Cara set yang PASTI bekerja: **GitHub Actions** — workflow di
-  `.github/workflows/deploy.yml` meng-inject `VITE_JEREXD_DEFAULT_KEY` dari GitHub secret saat
-  `npm run build`. (Environment variable di dashboard Cloudflare juga bisa, tapi tidak seandalkan
-  Secret Pages untuk `VITE_*` — Secret hanya untuk runtime Functions.) Lokal: `.env` (jangan di-commit).
-- `TELEGRAM_BOT_TOKEN` (secret, untuk bot webhook): set via `npx wrangler pages secret put TELEGRAM_BOT_TOKEN`.
+- **`JEREXD_API_KEY`** (secret server-side, produksi): key Jerexd default. CF Pages Function
+  `/api/proxy/*` menyuntikkannya bila user tidak mengirim `apikey` sendiri → **browser TIDAK pernah
+  menerima key** (tidak ter-bake ke bundle). Set sebagai **Secret**:
+  `npx wrangler pages secret put JEREXD_API_KEY --project-name=downloadkan`
+- **Dev lokal**: `.env` → `JEREXD_API_KEY` (dibaca Vite dev-proxy di sisi Node, tidak ke bundle).
+- `TELEGRAM_BOT_TOKEN` (secret, untuk bot webhook): `npx wrangler pages secret put TELEGRAM_BOT_TOKEN`.
 - Tidak ada env runtime lain yang wajib.
 
 ---
