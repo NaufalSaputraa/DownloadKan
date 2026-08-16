@@ -16,7 +16,7 @@ BANNER = r"""
  | | | |/ _ \ \ /\ / / '_ \| |/ _ \ / _` |/ _` | ' / _` | '_ \ 
  | |_| | (_) \ V  V /| | | | | (_) | (_| | (_| | . \ (_| | | | |
  |____/ \___/ \_/\_/ |_| |_|_|\___/ \__,_|\__,_|_|\_\__,_|_| |_|
-               Standalone Core — Video, FLAC, Torrent
+               Standalone Core - Video, FLAC, Torrent
 """
 
 def open_url(url: str):
@@ -29,10 +29,10 @@ def open_url(url: str):
 def run_server():
     """Jalankan local server + buka browser otomatis."""
     print(BANNER)
-    print(" 🚀 Menjalankan DownloadKan Standalone Core...")
-    print(" 🌐 Server lokal aktif di: http://127.0.0.1:8000")
-    print(" 📱 Membuka antarmuka Web UI di browser device...")
-    print(" 💡 Tekan Ctrl + C di terminal ini untuk berhenti.\n")
+    print(" [*] Menjalankan DownloadKan Standalone Core...")
+    print(" [*] Server lokal aktif di: http://127.0.0.1:8000")
+    print(" [*] Membuka antarmuka Web UI di browser device...")
+    print(" [!] Tekan Ctrl + C di terminal ini untuk berhenti.\n")
     print("---------------------------------------------------------------")
 
     # Buka browser setelah 1 detik
@@ -49,16 +49,16 @@ def run_server():
 def direct_download(url: str):
     """Download langsung lewat terminal tanpa buka browser."""
     print(BANNER)
-    print(f" 📥 Memulai unduhan instan: {url}\n")
+    print(f" [*] Memulai unduhan instan: {url}\n")
     
     # 1. Magnet / Torrent
     if url.startswith("magnet:") or url.endswith(".torrent"):
         if shutil.which("aria2c"):
-            print(" 👾 Mengunduh torrent via aria2c...")
+            print(" [*] Mengunduh torrent via aria2c...")
             subprocess.run(["aria2c", "--seed-time=0", url])
             return
         else:
-            print(" ⚠️ aria2c tidak ditemukan. Silakan pasang aria2 (pkg install aria2 / apt install aria2).")
+            print(" [!] aria2c tidak ditemukan. Silakan pasang aria2 (pkg install aria2 / apt install aria2).")
             return
 
     # 2. Video / Audio via yt-dlp
@@ -70,11 +70,11 @@ def direct_download(url: str):
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        print("\n ✅ Unduhan selesai!")
+        print("\n [SUCCESS] Unduhan selesai!")
     except ImportError:
-        print(" ❌ yt-dlp belum terpasang. Jalankan: pip install yt-dlp")
+        print(" [ERROR] yt-dlp belum terpasang. Jalankan: pip install yt-dlp")
     except Exception as e:
-        print(f" ❌ Gagal mengunduh: {e}")
+        print(f" [ERROR] Gagal mengunduh: {e}")
 
 def main():
     if len(sys.argv) > 1:
