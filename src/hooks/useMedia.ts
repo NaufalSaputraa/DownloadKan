@@ -1,19 +1,22 @@
 import { useCallback, useState } from 'react'
-import { detectKind, detectPlatform, type DetectResult } from '../utils/url-detect'
+import { detectKind, detectPlatform, isPlaylistUrl, type DetectResult } from '../utils/url-detect'
 import { pushHistory } from '../lib/storage'
 import {
   searchLocalUnified,
   analyzeLocalMedia,
+  extractPlaylist,
   type UnifiedSearchResult,
   type AnalyzedMedia,
+  type PlaylistInfo,
 } from '../lib/api-local'
 
 export interface MediaState {
-  status: 'idle' | 'analyzing' | 'done' | 'unified_search_done' | 'error'
+  status: 'idle' | 'analyzing' | 'done' | 'unified_search_done' | 'playlist_done' | 'error'
   result: AnalyzedMedia | null
   error: string | null
   detection: DetectResult | null
   unifiedResults?: UnifiedSearchResult
+  playlistInfo?: PlaylistInfo
   searchQuery?: string
 }
 
@@ -60,7 +63,24 @@ export function useMedia() {
       return
     }
 
-    // 2. ANALISIS URL MEDIA VIA LOCAL STANDALONE CORE (yt-dlp)
+    // 2. JIKA INPUT ADALAH PLAYLIST / ALBUM URL
+    if (isPlaylistUrl(detection.url)) {
+      try {
+        const playlistInfo = await extractPlaylist(detection.url)
+        setState({
+          status: 'playlist_done',
+          result: null,
+          error: null,
+          detection,
+          playlistInfo,
+        })
+        return
+      } catch {
+        /* Jika gagal sebagai playlist, lanjutkan analisis sebagai single track/video */
+      }
+    }
+
+    // 3. ANALISIS URL MEDIA VIA LOCAL STANDALONE CORE (yt-dlp)
     try {
       const result = await analyzeLocalMedia(detection.url)
       const platform = detectPlatform(detection.url)

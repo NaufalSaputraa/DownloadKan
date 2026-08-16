@@ -9,13 +9,13 @@ export interface UnifiedResultsProps {
   videos: LocalVideoItem[]
   musics: LocalMusicItem[]
   onSelectUrl?: (url: string) => void
+  onPlayTrack?: (track: LocalMusicItem) => void
 }
 
 type FilterType = 'all' | 'video' | 'music'
 
-export function UnifiedSearchResults({ query, videos, musics, onSelectUrl }: UnifiedResultsProps) {
+export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPlayTrack }: UnifiedResultsProps) {
   const [filter, setFilter] = useState<FilterType>('all')
-  const [playingPreview, setPlayingPreview] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const { push } = useToast()
 
@@ -66,14 +66,6 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl }: Uni
     }
   }
 
-  const togglePreview = (previewUrl: string) => {
-    if (playingPreview === previewUrl) {
-      setPlayingPreview(null)
-    } else {
-      setPlayingPreview(previewUrl)
-    }
-  }
-
   const showVideos = (filter === 'all' || filter === 'video') && videos.length > 0
   const showMusics = (filter === 'all' || filter === 'music') && musics.length > 0
 
@@ -117,17 +109,6 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl }: Uni
         </div>
       </div>
 
-      {/* Hidden Audio Player for Preview */}
-      {playingPreview && (
-        <audio
-          src={playingPreview}
-          autoPlay
-          onEnded={() => setPlayingPreview(null)}
-          onError={() => setPlayingPreview(null)}
-          className="hidden"
-        />
-      )}
-
       {/* SECTION: MUSIK FULL SONG */}
       {showMusics && (
         <div className="space-y-3">
@@ -140,7 +121,6 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl }: Uni
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {musics.map((track) => {
-              const isPlaying = playingPreview === track.preview
               const isDownloading = downloadingId === track.id
 
               return (
@@ -168,19 +148,13 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl }: Uni
                       )}
                       {track.preview && (
                         <button
-                          onClick={() => togglePreview(track.preview!)}
+                          onClick={() => onPlayTrack?.(track)}
                           className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-90 hover:opacity-100 transition-opacity"
-                          title={isPlaying ? 'Jeda preview' : 'Putar preview'}
+                          title="Putar lagu & lirik karaoke"
                         >
-                          {isPlaying ? (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M6 4h4v16H6V4Zm8 0h4v16h-4V4Z" />
-                            </svg>
-                          ) : (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M8 5v14l11-7z" />
-                            </svg>
-                          )}
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
                         </button>
                       )}
                     </div>

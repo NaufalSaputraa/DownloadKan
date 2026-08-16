@@ -513,11 +513,21 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
             "quiet": True,
             "no_warnings": True,
             "format": "bestvideo+bestaudio/best/18",
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": ["id", "en", "all"],
+            "subtitlesformat": "srt",
             "extractor_args": {
                 "youtube": {
                     "player_client": ["android", "web"]
                 }
             },
+            "postprocessors": [
+                {
+                    "key": "FFmpegEmbedSubtitle",
+                    "already_have_subtitle": False,
+                }
+            ],
         }
 
         loop = asyncio.get_event_loop()
@@ -534,6 +544,205 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
         active_jobs[job_id]["status"] = "failed"
         active_jobs[job_id]["error"] = str(err)
         await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+
+
+# ============================================================================
+# BATCH & PLAYLIST DOWNLOAD HANDLERS (Concurrency 3 Semaphore)
+# ============================================================================
+concurrency_semaphore = asyncio.Semaphore(3)
+
+class BatchDownloadItem(BaseModel):
+    url: str
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    artwork: Optional[str] = None
+
+class BatchDownloadRequest(BaseModel):
+    items: List[BatchDownloadItem]
+    format: str = "mp3"  # mp3, flac, video
+    category: str = "Music"
+
+@app.post("/api/download/batch")
+async def start_batch_download(req: BatchDownloadRequest):
+    if not req.items:
+        raise HTTPException(status_code=400, detail="Daftar item batch tidak boleh kosong.")
+
+    target_dir = DOWNLOAD_DIR / req.category
+    target_dir.mkdir(parents=True, exist_ok=True)
+    queued_jobs = []
+
+    async def run_bounded(job_id: str, job_req: DownloadJobRequest):
+        async with concurrency_semaphore:
+            await run_download_worker(job_id, job_req, target_dir)
+
+    for i, item in enumerate(req.items):
+        job_id = f"job_batch_{int(asyncio.get_event_loop().time())}_{i}_{os.urandom(3).hex()}"
+        clean_title = sanitize_clean_name(item.title or "Track")
+        clean_artist = sanitize_clean_name(item.artist or "")
+        filename = f"{clean_artist} - {clean_title}.{req.format}" if clean_artist else f"{clean_title}.{req.format}"
+
+        active_jobs[job_id] = {
+            "id": job_id,
+            "url": item.url,
+            "format": req.format,
+            "status": "starting",
+            "progress": 0,
+            "speed": "0 KB/s",
+            "eta": "…",
+            "filename": filename,
+        }
+        queued_jobs.append(job_id)
+
+        job_req = DownloadJobRequest(
+            url=item.url,
+            format=req.format,
+            title=item.title,
+            artist=item.artist,
+            album=item.album,
+            artwork=item.artwork,
+            category=req.category,
+        )
+        asyncio.create_task(run_bounded(job_id, job_req))
+
+    return {"status": "queued", "count": len(queued_jobs), "job_ids": queued_jobs}
+
+
+# ============================================================================
+# PLAYLIST & ALBUM EXTRACTION (yt-dlp Flat & Apple Music/Spotify Extractor)
+# ============================================================================
+@app.post("/api/playlist/extract")
+async def extract_playlist(req: AnalyzeRequest):
+    url = req.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL wajib diisi.")
+
+    try:
+        import yt_dlp
+        ydl_opts = {
+            "extract_flat": True,
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+        }
+        loop = asyncio.get_event_loop()
+        def do_extract():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(url, download=False)
+
+        info = await loop.run_in_executor(None, do_extract)
+        if not info:
+            raise Exception("Gagal mengekstrak informasi playlist.")
+
+        entries = info.get("entries") or []
+        items = []
+        for i, entry in enumerate(entries):
+            if not entry:
+                continue
+            dur = entry.get("duration", 0) or 0
+            mins = int(dur // 60)
+            secs = int(dur % 60)
+            dur_str = f"{mins}:{secs:02d}" if dur else ""
+            vid_url = entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
+            items.append({
+                "id": str(entry.get("id") or f"item_{i}"),
+                "index": i + 1,
+                "title": sanitize_clean_name(entry.get("title", "Track")),
+                "artist": entry.get("uploader") or entry.get("channel") or info.get("uploader", ""),
+                "duration": dur,
+                "duration_str": dur_str,
+                "thumbnail": entry.get("thumbnail") or info.get("thumbnail", ""),
+                "url": vid_url,
+            })
+
+        return {
+            "title": sanitize_clean_name(info.get("title", "Playlist")),
+            "uploader": info.get("uploader") or info.get("channel", "Various Artists"),
+            "thumbnail": info.get("thumbnail", ""),
+            "item_count": len(items),
+            "items": items,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengekstrak playlist: {str(e)}")
+
+
+# ============================================================================
+# IN-APP MEDIA STREAMING (Audio & Video Range Streaming)
+# ============================================================================
+@app.get("/api/stream/{category}/{filename}")
+async def stream_media(category: str, filename: str):
+    file_path = DOWNLOAD_DIR / category / filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File tidak ditemukan di disk lokal.")
+
+    media_type = "application/octet-stream"
+    if filename.endswith(".mp3"):
+        media_type = "audio/mpeg"
+    elif filename.endswith(".flac"):
+        media_type = "audio/flac"
+    elif filename.endswith(".mp4"):
+        media_type = "video/mp4"
+    elif filename.endswith(".lrc") or filename.endswith(".srt"):
+        media_type = "text/plain; charset=utf-8"
+
+    return FileResponse(file_path, media_type=media_type, filename=filename)
+
+
+# ============================================================================
+# LYRICS FETCHER (Local Disk .lrc & Live LRCLIB)
+# ============================================================================
+@app.get("/api/lyrics/get")
+async def get_lyrics(title: str, artist: str = "", album: str = ""):
+    clean_title = sanitize_clean_name(title)
+    clean_artist = sanitize_clean_name(artist)
+
+    # 1. Cek apakah ada file .lrc di folder Music
+    for candidate in [
+        DOWNLOAD_DIR / "Music" / f"{clean_artist} - {clean_title}.lrc",
+        DOWNLOAD_DIR / "Music" / f"{clean_title}.lrc",
+    ]:
+        if candidate.exists():
+            return {
+                "title": clean_title,
+                "artist": clean_artist,
+                "lyrics": candidate.read_text(encoding="utf-8"),
+                "source": "local_disk",
+            }
+
+    # 2. Ambil dari LRCLIB
+    lrc_text = fetch_lrclib_lyrics(clean_title, clean_artist, album)
+    return {
+        "title": clean_title,
+        "artist": clean_artist,
+        "lyrics": lrc_text,
+        "source": "lrclib" if lrc_text else "none",
+    }
+
+
+# ============================================================================
+# 1-CLICK ENGINE UPDATER & HEALTH SELF-HEALING
+# ============================================================================
+@app.post("/api/system/update-engine")
+async def update_engine_core():
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade", "yt-dlp",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        out_msg = stdout.decode("utf-8", errors="ignore")
+
+        import yt_dlp
+        version = getattr(yt_dlp.version, "__version__", "Terbaru")
+        return {
+            "status": "success",
+            "message": f"Engine yt-dlp berhasil diperbarui (v{version}).",
+            "version": version,
+            "log": out_msg[-300:] if out_msg else "",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal memperbarui engine: {str(e)}")
 
 
 # ============================================================================

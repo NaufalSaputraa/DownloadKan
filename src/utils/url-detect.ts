@@ -92,6 +92,10 @@ export function detectKind(input: string): DetectResult {
   return { kind: 'unknown', platform: 'unknown', url: raw }
 }
 
+export function isPlaylistUrl(url: string): boolean {
+  return /[?&]list=[a-zA-Z0-9_-]+|\/playlist|\/album\//i.test(url)
+}
+
 /** Benarkah URL ini punya peluang didukung salah satu engine media? */
 export function isSupportedPlatform(platform: MediaPlatform): boolean {
   return platform !== 'unknown'

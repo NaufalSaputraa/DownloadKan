@@ -5,6 +5,8 @@ import { MediaResult } from './components/MediaResult'
 import { TorrentPanel } from './components/TorrentPanel'
 import { UnifiedSearchResults } from './components/UnifiedSearchResults'
 import { SettingsSheet } from './components/SettingsSheet'
+import { AudioPlayer, type TrackState } from './components/AudioPlayer'
+import { PlaylistBatchModal } from './components/PlaylistBatchModal'
 import { Toaster } from './components/ui/Toast'
 import { DEEZLOAD_BOT, telegramBotDeepLink } from './lib/telegram'
 import { useMedia } from './hooks/useMedia'
@@ -17,7 +19,8 @@ type Tab = 'media' | 'torrent'
 function App() {
   const [tab, setTab] = useState<Tab>('media')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { state, analyze } = useMedia()
+  const [currentPlayingTrack, setCurrentPlayingTrack] = useState<TrackState | null>(null)
+  const { state, analyze, reset } = useMedia()
   const { settings, update } = useSettings()
   const { toasts, push, dismiss } = useToast()
   const { isLocal, jobs } = useLocalBackend()
@@ -231,6 +234,16 @@ function App() {
                   videos={state.unifiedResults.videos}
                   musics={state.unifiedResults.musics}
                   onSelectUrl={(link) => handleSubmit(link)}
+                  onPlayTrack={(track) =>
+                    setCurrentPlayingTrack({
+                      title: track.title,
+                      artist: track.artist,
+                      album: track.album,
+                      artwork: track.artwork,
+                      src: track.preview || '',
+                      duration: track.duration,
+                    })
+                  }
                 />
               )}
               {state.status === 'idle' && <IdleHint />}
@@ -251,11 +264,24 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-auto pt-12 text-center">
+      <footer className="mt-auto pt-12 text-center pb-16">
         <p className="font-display text-base sm:text-lg text-ink-muted">
           Tool, bukan api. File yang kamu unduh milikmu — tak pernah melewati server kami.
         </p>
       </footer>
+
+      {/* Playlist & Album Batch Downloader Modal */}
+      <PlaylistBatchModal
+        open={state.status === 'playlist_done'}
+        playlist={state.playlistInfo ?? null}
+        onClose={reset}
+      />
+
+      {/* Built-in Floating Audio Player & Karaoke Lyrics */}
+      <AudioPlayer
+        currentTrack={currentPlayingTrack}
+        onClose={() => setCurrentPlayingTrack(null)}
+      />
 
       <SettingsSheet
         open={settingsOpen}

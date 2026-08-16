@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import type { AudioQualitySetting, Settings } from '../lib/storage'
 import { clearHistory } from '../lib/storage'
 import { useLocalBackend } from '../hooks/useLocalBackend'
+import { updateEngineCore } from '../lib/api-local'
 
 interface Props {
   open: boolean
@@ -20,7 +21,24 @@ const QUALITY_OPTIONS: Array<{ id: AudioQualitySetting; label: string; desc: str
 export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [cleared, setCleared] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null)
   const { isLocal, health } = useLocalBackend()
+
+  const handleUpdateEngine = async () => {
+    try {
+      setIsUpdating(true)
+      setUpdateMsg(null)
+      const res = await updateEngineCore()
+      setUpdateMsg(`✓ ${res.message}`)
+      setTimeout(() => setUpdateMsg(null), 4000)
+    } catch (err) {
+      setUpdateMsg(`✕ ${(err as Error).message}`)
+      setTimeout(() => setUpdateMsg(null), 4000)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
 
   const selectedQuality =
     QUALITY_OPTIONS.find((q) => q.id === (settings.audioQuality ?? 'flac')) ?? QUALITY_OPTIONS[0]
@@ -111,6 +129,30 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                     </p>
                   </div>
                 )}
+
+                {/* Tombol Update Engine Core */}
+                <button
+                  type="button"
+                  disabled={isUpdating}
+                  onClick={handleUpdateEngine}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-glass px-3 py-2 text-xs font-mono text-emerald-400 hover:bg-emerald-500/15 border border-emerald-500/30 transition-colors disabled:opacity-50"
+                >
+                  {isUpdating ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      <span>Sedang Memperbarui yt-dlp Core...</span>
+                    </>
+                  ) : updateMsg ? (
+                    <span>{updateMsg}</span>
+                  ) : (
+                    <>
+                      <span>⚡ Perbarui Engine Core (yt-dlp)</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Kualitas Audio Utama Dropdown */}
