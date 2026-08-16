@@ -1,0 +1,8 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+yt-dlp>=2025.1.15
+streamrip>=2.0.0; python_version >= '3.10'
+mutagen>=1.47.0
+aiohttp>=3.10.0
+websockets>=13.0
+requests>=2.32.0

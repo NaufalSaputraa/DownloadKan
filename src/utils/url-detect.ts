@@ -31,11 +31,11 @@ const MAGNET_RE = /^magnet:\?xt=urn:btih:([a-fA-F0-9]{40})/i
 const INFOHASH_RE = /^[a-fA-F0-9]{40}$/
 
 const PLATFORM_RULES: Array<[MediaPlatform, RegExp]> = [
-  ['tiktok', /(^|\.)tiktok\.com|vm\.tiktok\.com|tiktok\.com\//i],
+  ['tiktok', /(?:^|[/.])tiktok\.com|vm\.tiktok\.com/i],
   ['douyin', /douyin\.com|iesdouyin\.com/i],
   ['instagram', /instagram\.com|instagr\.am/i],
   ['youtube', /youtube\.com|youtu\.be|music\.youtube\.com/i],
-  ['twitter', /(^|\.)x\.com|twitter\.com/i],
+  ['twitter', /(?:^|[/.])x\.com|twitter\.com/i],
   ['facebook', /facebook\.com|fb\.watch|fb\.com/i],
   ['threads', /threads\.net/i],
   ['spotify', /open\.spotify\.com|spotify\.link/i],
@@ -54,7 +54,7 @@ export function stripTracking(url: string): string {
   try {
     const u = new URL(url)
     for (const key of [...u.searchParams.keys()]) {
-      if (/(^|_)utm_|fbclid|igshid|spm|si=|s$|t$/.test(key) || key === 'feature') {
+      if (/(^|_)utm_|fbclid|igshid|spm|^si$|^s$|^t$/i.test(key) || key === 'feature') {
         u.searchParams.delete(key)
       }
     }

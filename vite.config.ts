@@ -66,6 +66,56 @@ function torrentSearchDevMiddleware(): Plugin {
   }
 }
 
+/** Dev middleware: /api/proxy/download?url=...&filename=... — stream file CDN
+ *  dengan `Content-Disposition` yang benar agar nama file unduhan sesuai judul. */
+function downloadProxyMiddleware(): Plugin {
+  return {
+    name: 'download-proxy-dev',
+    configureServer(server) {
+      server.middlewares.use('/api/proxy/download', async (req, res) => {
+        try {
+          const parsed = new URL(req.url ?? '/', 'http://localhost')
+          const targetUrl = parsed.searchParams.get('url')
+          const filename = parsed.searchParams.get('filename') || 'download'
+          if (!targetUrl) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ error: 'url param required' }))
+            return
+          }
+          const upstream = await fetch(targetUrl)
+          if (!upstream.ok) {
+            res.statusCode = upstream.status
+            res.end(`Upstream error: ${upstream.status}`)
+            return
+          }
+          const ct = upstream.headers.get('content-type') || 'application/octet-stream'
+          const cl = upstream.headers.get('content-length')
+          res.setHeader('Content-Type', ct)
+          if (cl) res.setHeader('Content-Length', cl)
+          // Force filename — inilah yang menyelesaikan masalah UUID
+          res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, "'")}"`)
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          const reader = upstream.body?.getReader()
+          if (!reader) { res.statusCode = 502; res.end('No body'); return }
+          const pump = async () => {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) { res.end(); break }
+              res.write(Buffer.from(value))
+            }
+          }
+          await pump()
+        } catch (err) {
+          if (!res.headersSent) {
+            res.statusCode = 502
+            res.end(JSON.stringify({ error: (err as Error).message }))
+          }
+        }
+      })
+    },
+  }
+}
+
 /**
  * WebTorrent di-bundle untuk Node; di browser beberapa modulnya tidak valid
  * (utp-native, nat-api, conn-pool yang di-`browser:false`). Stub dipasang di
@@ -76,18 +126,29 @@ const WEBTORRENT_STUB_NAMES = ['utp-native', '@silentbot1/nat-api']
 const WEBTORRENT_STUB_PATH_MARKERS = ['webtorrent/lib/utp', 'webtorrent/lib/conn-pool', 'lib/conn-pool', 'lib/utp']
 
 function isStubTarget(id: string): boolean {
-  if (WEBTORRENT_STUB_NAMES.includes(id)) return true
-  return WEBTORRENT_STUB_PATH_MARKERS.some((m) => id.endsWith(m) || id.includes(m + '.cjs') || id.includes(m + '.js'))
+  const norm = id.replace(/\\/g, '/').toLowerCase()
+  if (WEBTORRENT_STUB_NAMES.includes(norm)) return true
+  return WEBTORRENT_STUB_PATH_MARKERS.some((m) => norm.endsWith(m) || norm.includes(m + '.cjs') || norm.includes(m + '.js'))
 }
 
 function webtorrentBrowserStubs(): Plugin {
   return {
     name: 'webtorrent-browser-stubs',
     resolveId(id) {
+      const norm = id.replace(/\\/g, '/').toLowerCase()
+      if (norm.includes('version.cjs')) return '\0wt-version'
+      if (norm.includes('cpus/browser.js') || norm.endsWith('/cpus') || norm === 'cpus') return '\0wt-cpus'
       if (isStubTarget(id)) return `\0wt-stub:${id}`
       return null
     },
     load(id) {
+      if (id === '\0wt-version') return `export default '3.0.21';`
+      if (id === '\0wt-cpus') {
+        return `export default function cpus() {
+          const num = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 1;
+          return Array.from({ length: num }, () => ({ model: '', speed: 0, times: { user: 0, nice: 0, sys: 0, idle: 0, irq: 0 } }));
+        };`
+      }
       if (id.startsWith('\0wt-stub:')) return WEBTORRENT_STUB_SRC
       return null
     },
@@ -104,10 +165,11 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       torrentSearchDevMiddleware(),
+      downloadProxyMiddleware(),
       webtorrentBrowserStubs(),
       nodePolyfills({
         // Polyfill modul Node yang dibutuhkan WebTorrent di browser.
-        include: ['events', 'path', 'process', 'stream', 'buffer', 'util'],
+        include: ['events', 'path', 'process', 'stream', 'buffer', 'util', 'crypto', 'net', 'dgram', 'string_decoder', 'timers', 'http', 'https', 'url', 'os', 'zlib'],
         globals: { Buffer: true, process: true, global: true },
       }),
     ],
@@ -155,6 +217,7 @@ export default defineConfig(({ mode }) => {
         'uint8-util',
         'ut_metadata',
         '@thaunknown/simple-peer',
+        'cpus',
       ],
     },
     server: {
@@ -164,6 +227,12 @@ export default defineConfig(({ mode }) => {
         '/api/proxy/jerexd': jerexdProxy(jerexdKey),
         '/api/proxy/deezer': PROXY('https://api.deezer.com'),
       },
+    },
+    resolve: {
+      alias: [
+        { find: 'mime/lite.js', replacement: 'mime/lite' },
+        { find: /.*version\.cjs$/, replacement: '/src/lib/webtorrent-version-stub.ts' },
+      ],
     },
   }
 })

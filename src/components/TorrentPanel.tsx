@@ -1,18 +1,23 @@
 import { useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTorrent, type ActiveTorrent } from '../hooks/useTorrent'
+import { useLocalBackend } from '../hooks/useLocalBackend'
 import { searchTorrentsFromApi } from '../engines/torrent/search'
+import { searchLocalTorrent } from '../lib/api-local'
 import type { TorrentHit } from '../engines/torrent/sources'
 import { formatEta, formatSpeed } from '../utils/format'
 import { Chip } from './ui/Chip'
 
 export function TorrentPanel() {
   const { active, start, remove, clearFinished } = useTorrent()
+  const { isLocal, download: startLocalDownload } = useLocalBackend()
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [hits, setHits] = useState<TorrentHit[]>([])
   const [searchMsg, setSearchMsg] = useState<string | null>(null)
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+
   const doSearch = useCallback(async () => {
     const q = query.trim()
     if (!q || searching) return
@@ -22,8 +27,16 @@ export function TorrentPanel() {
     setSearching(true)
     setSearchMsg(null)
     setHits([])
+
     try {
-      const results = await searchTorrentsFromApi(q, ctrl.signal)
+      // Coba lewat backend lokal dulu jika aktif
+      let results: TorrentHit[] = []
+      if (isLocal) {
+        results = (await searchLocalTorrent(q, ctrl.signal)) as TorrentHit[]
+      }
+      if (!results.length) {
+        results = await searchTorrentsFromApi(q, ctrl.signal)
+      }
       setHits(results)
       if (!results.length) setSearchMsg('Tidak ada hasil untuk kueri itu.')
     } catch (err) {
@@ -31,7 +44,7 @@ export function TorrentPanel() {
     } finally {
       if (!ctrl.signal.aborted) setSearching(false)
     }
-  }, [query, searching])
+  }, [query, searching, isLocal])
 
   const isMagnet = useCallback((q: string) => {
     const t = q.trim()
@@ -43,12 +56,21 @@ export function TorrentPanel() {
     const q = query.trim()
     if (!q) return
     if (isMagnet(q)) {
+      if (isLocal) {
+        void startLocalDownload(q, 'torrent', 'Torrents')
+      }
       start(q)
       setQuery('')
       return
     }
     void doSearch()
-  }, [query, isMagnet, start, doSearch])
+  }, [query, isMagnet, start, doSearch, isLocal, startLocalDownload])
+
+  const handleCopyMagnet = (magnet: string, index: number) => {
+    void navigator.clipboard.writeText(magnet)
+    setCopiedIndex(index)
+    setTimeout(() => setCopiedIndex(null), 2000)
+  }
 
   return (
     <motion.div
@@ -60,16 +82,23 @@ export function TorrentPanel() {
     >
       {/* Paste magnet */}
       <section className="glass rounded-[24px] p-5 sm:p-6">
-        <h2 className="mb-1 font-display text-xl text-ink">Paste magnet / infohash</h2>
-        <p className="mb-4 max-w-md text-sm text-ink-muted">
-          Unduhan P2P berjalan langsung dari browsermu via WebTorrent — tanpa lewat server.
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-display text-xl text-ink">Pencarian &amp; Unduh Torrent</h2>
+          {isLocal && (
+            <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 font-mono text-[11px] text-emerald-300">
+              aria2c Engine Aktif
+            </span>
+          )}
+        </div>
+        <p className="mb-4 max-w-md text-sm text-ink-muted leading-relaxed">
+          Cari torrent film, anime, atau software dari berbagai sumber, atau paste magnet langsung.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="magnet:?xt=urn:btih:… atau cari kata kunci"
+            placeholder="magnet:?xt=urn:btih:… atau cari judul film/anime/game"
             className="min-w-0 flex-1 rounded-2xl border border-glass-border bg-glass px-4 py-3 font-mono text-sm text-ink outline-none placeholder:text-ink-faint focus:border-accent"
             aria-label="Magnet atau kata kunci pencarian"
             autoCapitalize="off"
@@ -79,15 +108,14 @@ export function TorrentPanel() {
           <button
             onClick={handleSubmit}
             disabled={searching || !query.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)] disabled:opacity-45"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)] disabled:opacity-45"
           >
-            {searching ? 'Mencari…' : isMagnet(query) ? 'Mulai Unduh' : 'Cari'}
+            {searching ? 'Mencari…' : isMagnet(query) ? 'Mulai Unduh' : 'Cari Torrent'}
           </button>
         </div>
 
         <p className="mt-3 font-mono text-[11px] text-ink-faint">
-          Tips: kalau punya magnet/infohash langsung, paste &amp; tekan Enter — WebTorrent akan
-          menyambung lalu kamu simpan filenya.
+          💡 Tips: Hasil pencarian menyertakan link magnet langsung yang bisa dibuka di aplikasi qBittorrent, Flud, atau 1DM.
         </p>
       </section>
 
@@ -96,10 +124,10 @@ export function TorrentPanel() {
       {hits.length > 0 && (
         <section>
           <div className="mb-2 flex items-center justify-between px-1">
-            <h3 className="text-sm font-medium text-ink">Hasil pencarian</h3>
-            <span className="font-mono text-xs text-ink-faint">{hits.length} item</span>
+            <h3 className="text-sm font-medium text-ink">Hasil Pencarian ({hits.length} Item)</h3>
+            <span className="font-mono text-xs text-ink-faint">Urutan Seeder Terbanyak</span>
           </div>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-2.5">
             <AnimatePresence initial={false}>
               {hits.map((h, i) => (
                 <motion.li
@@ -108,24 +136,51 @@ export function TorrentPanel() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
-                  className="glass flex flex-col gap-2 rounded-2xl p-4 sm:flex-row sm:items-center"
+                  className="glass flex flex-col justify-between gap-3 rounded-2xl p-4 sm:flex-row sm:items-center"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <Chip tone="accent">{h.source}</Chip>
                       {h.quality && <Chip>{h.quality}</Chip>}
                     </div>
-                    <p className="mt-1.5 line-clamp-2 text-sm leading-snug text-ink">{h.title}</p>
+                    <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-ink">{h.title}</p>
                     <p className="mt-1 font-mono text-xs text-ink-faint">
-                      {h.size} · {h.seeders} seeder · {h.leechers} leecher
+                      Ukuran: <span className="text-ink">{h.size}</span> · <span className="text-emerald-400 font-semibold">{h.seeders}</span> seeder · {h.leechers} leecher
                     </p>
                   </div>
-                  <button
-                    onClick={() => start(h.magnet)}
-                    className="shrink-0 self-start rounded-full border border-glass-border px-4 py-2 text-sm text-ink transition-colors hover:border-accent hover:text-accent sm:self-center"
-                  >
-                    Unduh
-                  </button>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Buka di App Torrent HP/PC via magnet: handler */}
+                    <a
+                      href={h.magnet}
+                      className="inline-flex items-center gap-1 rounded-full border border-glass-border bg-glass px-3.5 py-1.5 text-xs text-ink transition-colors hover:border-accent hover:text-accent"
+                      title="Buka langsung di aplikasi torrent bawaan HP/PC (qBittorrent, Flud, 1DM)"
+                    >
+                      Buka di App
+                    </a>
+
+                    {/* Salin Magnet */}
+                    <button
+                      onClick={() => handleCopyMagnet(h.magnet, i)}
+                      className="rounded-full border border-glass-border px-3 py-1.5 text-xs text-ink-muted transition-colors hover:text-ink"
+                      title="Salin tautan magnet ke clipboard"
+                    >
+                      {copiedIndex === i ? 'Tersalin ✓' : 'Salin Magnet'}
+                    </button>
+
+                    {/* Unduh via WebTorrent browser / local */}
+                    <button
+                      onClick={() => {
+                        if (isLocal) {
+                          void startLocalDownload(h.magnet, 'torrent', 'Torrents')
+                        }
+                        start(h.magnet)
+                      }}
+                      className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)]"
+                    >
+                      {isLocal ? 'Unduh (aria2c)' : 'Unduh di Web'}
+                    </button>
+                  </div>
                 </motion.li>
               ))}
             </AnimatePresence>

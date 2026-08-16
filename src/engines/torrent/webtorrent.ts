@@ -57,7 +57,7 @@ class TorrentManager {
     if (this.client) return this.client
     const mod = await import('webtorrent')
     const WebTorrent = mod.default ?? mod
-    this.client = new WebTorrent()
+    this.client = new WebTorrent({ dht: false, lsd: false })
     return this.client
   }
 

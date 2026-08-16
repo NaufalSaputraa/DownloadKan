@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { AudioQualitySetting, Settings } from '../lib/storage'
-import { DEFAULT_JEREXD_KEY } from '../lib/storage'
+import { clearHistory, DEFAULT_JEREXD_KEY } from '../lib/storage'
 import { getEngineHealth } from '../engines/media'
+import { useLocalBackend } from '../hooks/useLocalBackend'
 
 interface Props {
   open: boolean
@@ -18,18 +19,17 @@ const QUALITY_OPTIONS: Array<{ id: AudioQualitySetting; label: string; desc: str
 ]
 
 export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
-  // Kosongkan draft bila memakai key default, agar field tampak "belum diisi".
   const usingDefault = !settings.jerexdKey || settings.jerexdKey === DEFAULT_JEREXD_KEY
   const [draft, setDraft] = useState(usingDefault ? '' : settings.jerexdKey)
   const [saved, setSaved] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const { isLocal, health } = useLocalBackend()
 
   const healthList = getEngineHealth()
   const selectedQuality = QUALITY_OPTIONS.find((q) => q.id === (settings.audioQuality ?? 'flac')) ?? QUALITY_OPTIONS[0]
 
   const save = () => {
-    // Kosong → pakai key default (jangan simpan override). Isi → override.
     const finalKey = draft.trim() ? draft.trim() : ''
     onChange({ jerexdKey: finalKey })
     setSaved(true)
@@ -54,13 +54,13 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
             role="dialog"
             aria-modal="true"
             aria-label="Pengaturan"
-            className="fixed inset-x-3 bottom-3 z-[80] mx-auto max-w-md"
+            className="fixed inset-x-3 bottom-3 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 z-[80] mx-auto max-w-md"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="glass-2 rounded-[24px] p-6 text-ink">
+            <div className="glass-2 max-h-[85vh] overflow-y-auto rounded-[24px] p-5 sm:p-6 text-ink">
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="font-display text-xl text-ink">Pengaturan</h2>
                 <button
@@ -75,8 +75,49 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
               </div>
 
               <p className="mb-4 text-xs text-ink-muted">
-                Pengaturan ini tersimpan tersandi secara privat di browser-mu (localStorage).
+                Pengaturan ini tersimpan tersandi secara privat di device-mu (localStorage).
               </p>
+
+              {/* Status Local Standalone Engine */}
+              {isLocal && health && (
+                <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                      ⚡ Standalone Engine Aktif
+                    </span>
+                    <span className="font-mono text-[10px] text-emerald-300">Local Core</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <div className="flex items-center gap-1.5 text-ink-muted">
+                      <span>yt-dlp:</span>
+                      <span className={health.engines.ytdlp ? 'text-emerald-400' : 'text-rose-400'}>
+                        {health.engines.ytdlp ? 'Terpasang ✓' : 'Absen'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-ink-muted">
+                      <span>streamrip:</span>
+                      <span className={health.engines.streamrip ? 'text-emerald-400' : 'text-rose-400'}>
+                        {health.engines.streamrip ? 'Terpasang ✓' : 'Absen'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-ink-muted">
+                      <span>aria2c:</span>
+                      <span className={health.engines.aria2c ? 'text-emerald-400' : 'text-amber-400'}>
+                        {health.engines.aria2c ? 'Terpasang ✓' : 'Opsional'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-ink-muted">
+                      <span>FFmpeg:</span>
+                      <span className={health.engines.ffmpeg ? 'text-emerald-400' : 'text-rose-400'}>
+                        {health.engines.ffmpeg ? 'Terpasang ✓' : 'Absen'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="font-mono text-[10px] text-ink-faint truncate" title={health.downloadDir}>
+                    📁 Simpan: {health.downloadDir}
+                  </p>
+                </div>
+              )}
 
               {/* Input API Key Custom / Default */}
               <div className="mb-4">
@@ -114,9 +155,6 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                       )}
                     </button>
                   )}
-                </div>
-                <div className="mt-2 rounded-xl bg-glass-2 p-2.5 text-[11px] leading-relaxed text-ink-muted">
-                  <span className="font-semibold text-ink">Catatan API Key:</span> Kosongkan untuk memakai <span className="font-mono text-ink">Key Default</span> (disuntikkan server-side, tidak tampil di browser). Jika kamu mengisi API Key pribadi, key kamu akan otomatis menimpa key default.
                 </div>
               </div>
 
@@ -186,9 +224,9 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
               </div>
 
               {/* Status Health Engine */}
-              <div className="mb-5 rounded-2xl border border-glass-border bg-glass/40 p-4">
+              <div className="mb-4 rounded-2xl border border-glass-border bg-glass/40 p-4">
                 <span className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-ink-faint">
-                  Status Engine Media
+                  Status Engine Cloud
                 </span>
                 <div className="space-y-2">
                   {healthList.map((e) => (
@@ -203,6 +241,25 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                 </div>
               </div>
 
+              {/* Data Local & History */}
+              <div className="mb-5 flex items-center justify-between rounded-2xl border border-glass-border bg-glass/40 p-3.5">
+                <div>
+                  <span className="block text-xs font-medium text-ink">Riwayat Local</span>
+                  <span className="text-[11px] text-ink-muted">Hapus daftar riwayat & cache browser</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearHistory()
+                    setSaved(true)
+                    window.setTimeout(() => setSaved(false), 1500)
+                  }}
+                  className="rounded-xl border border-glass-border bg-glass px-3 py-1.5 text-xs text-rose-400 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+                >
+                  Hapus Data
+                </button>
+              </div>
+
               <div className="mt-5 flex items-center gap-3">
                 <button
                   onClick={save}
@@ -214,7 +271,7 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                   onClick={onClose}
                   className="rounded-full px-4 py-2.5 text-sm text-ink-muted transition-colors hover:text-ink"
                 >
-                  Batal
+                  Tutup
                 </button>
               </div>
             </div>

@@ -157,12 +157,7 @@ async function fetchDeezer(url: string, jerexdKey: string): Promise<MediaResult>
   const cover = json.album?.cover_big ?? null
   const downloads: Array<{ type: string; url: string }> = []
 
-  // Preview 30 detik dari Deezer API (paling andal) — taruh paling depan.
-  if (json.preview) {
-    downloads.push({ type: 'Audio Preview 30 Detik (MP3)', url: json.preview })
-  }
-
-  // Coba Jerexd untuk full song download (FLAC/MP3 320) via aio.
+  // 1. Coba Jerexd untuk full song download (FLAC/MP3 320) via aio.
   // Key default disembunyikan server-side — frontend hanya kirim apikey bila user override.
   {
     try {
@@ -172,15 +167,28 @@ async function fetchDeezer(url: string, jerexdKey: string): Promise<MediaResult>
       const jRes = await fetch(endpoint)
       const jJson = (await jRes.json()) as {
         downloadUrl?: string
+        downloads?: Array<{ type?: string; url?: string }>
         status?: boolean
         result?: unknown
       }
       if (typeof jJson.downloadUrl === 'string' && jJson.downloadUrl.startsWith('http')) {
         downloads.push({ type: 'Audio Utuh (FLAC/MP3 320)', url: jJson.downloadUrl })
       }
+      if (Array.isArray(jJson.downloads)) {
+        jJson.downloads.forEach((d) => {
+          if (typeof d?.url === 'string' && d.url.startsWith('http')) {
+            downloads.push({ type: 'Audio Utuh (FLAC/MP3 320)', url: d.url })
+          }
+        })
+      }
     } catch {
       // Jerexd gagal, lanjut ke fallback
     }
+  }
+
+  // 2. Preview 30 detik dari Deezer API sebagai cadangan
+  if (json.preview) {
+    downloads.push({ type: 'Audio Preview 30 Detik (MP3)', url: json.preview })
   }
 
   // Coba Nezumi sebagai fallback untuk full song — hanya untuk platform yang

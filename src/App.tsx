@@ -10,6 +10,7 @@ import { DEEZLOAD_BOT, telegramBotDeepLink } from './lib/telegram'
 import { useMedia } from './hooks/useMedia'
 import { useSettings } from './hooks/useSettings'
 import { useToast } from './hooks/useToast'
+import { useLocalBackend } from './hooks/useLocalBackend'
 
 type Tab = 'media' | 'torrent'
 
@@ -19,6 +20,7 @@ function App() {
   const { state, analyze } = useMedia()
   const { settings, update } = useSettings()
   const { toasts, push, dismiss } = useToast()
+  const { isLocal, jobs } = useLocalBackend()
 
   const handleSubmit = useCallback(
     (url: string) => {
@@ -52,28 +54,45 @@ function App() {
       </a>
 
       {/* Nav — N5 floating pill */}
-      <header className="mb-10 flex items-center justify-between">
-        <a href="/" className="group flex items-baseline gap-1" aria-label="DownloadKan — beranda">
-          <span className="font-display text-2xl tracking-tight text-ink">Download</span>
-          <span className="font-display text-2xl italic tracking-tight text-accent">Kan</span>
-        </a>
+      <header className="mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <a href="/" className="group flex items-baseline gap-1" aria-label="DownloadKan — beranda">
+            <span className="font-display text-2xl tracking-tight text-ink">Download</span>
+            <span className="font-display text-2xl italic tracking-tight text-accent">Kan</span>
+          </a>
+          {isLocal && (
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 font-mono text-[10px] text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Local Core
+            </span>
+          )}
+        </div>
 
         <nav className="glass flex items-center gap-1 rounded-full p-1">
-          {(['media', 'torrent'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              aria-pressed={tab === t}
-              className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                tab === t ? 'bg-glass-2 text-ink' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              {t === 'media' ? 'Media' : 'Torrent'}
-            </button>
-          ))}
+          <div className="relative flex items-center gap-1">
+            {(['media', 'torrent'] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                aria-pressed={tab === t}
+                className="relative z-10 rounded-full px-4 py-1.5 text-sm transition-colors duration-200"
+                style={{ color: tab === t ? 'var(--color-ink)' : 'var(--color-ink-muted)' }}
+              >
+                {tab === t && (
+                  <motion.span
+                    layoutId="tab-indicator"
+                    className="absolute inset-0 rounded-full bg-glass-2"
+                    style={{ zIndex: -1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                {t === 'media' ? 'Media' : 'Torrent'}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => setSettingsOpen(true)}
-            className="rounded-full p-1.5 text-ink-faint transition-colors hover:bg-glass hover:text-ink"
+            className="rounded-full p-1.5 text-ink-faint transition-all hover:bg-glass hover:text-ink hover:rotate-45 duration-300"
             aria-label="Pengaturan"
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -84,7 +103,7 @@ function App() {
         </nav>
       </header>
 
-      {/* Hero — macrostructure: marquee, typography-dominant */}
+      {/* Hero */}
       <motion.section
         className="mb-8"
         initial={{ opacity: 0, y: 10 }}
@@ -92,15 +111,38 @@ function App() {
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
         <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.2em] text-ink-faint">
-          100% di browsermu — tanpa server
+          {isLocal ? '⚡ Standalone Local Engine — FLAC 24-bit, 4K & Torrent' : '100% di browsermu — tanpa server'}
         </p>
-        <h1 className="max-w-[12ch] font-display text-5xl leading-[1.02] tracking-tight text-ink sm:text-6xl">
+        <h1 className="max-w-[14ch] font-display text-4xl leading-[1.05] tracking-tight text-ink sm:text-6xl">
           Unduh dari mana saja.
         </h1>
       </motion.section>
 
       {/* Main */}
       <main id="main" className="flex flex-col gap-4">
+        {/* Active Local Download Jobs Bar */}
+        {jobs.length > 0 && (
+          <section className="glass rounded-2xl p-4 border border-accent/30 space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink">Antrean Unduhan Lokal</h3>
+            {jobs.map((j) => (
+              <div key={j.id} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="truncate max-w-[260px] font-medium text-ink">{j.filename}</span>
+                  <span className="font-mono text-[11px] text-ink-muted">
+                    {j.speed} · ETA {j.eta} ({j.progress}%)
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-glass-2">
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-300"
+                    style={{ width: `${Math.max(j.progress, 3)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
         <AnimatePresence mode="wait">
           {tab === 'media' ? (
             <motion.div
@@ -139,9 +181,9 @@ function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer — Ft5 statement */}
+      {/* Footer */}
       <footer className="mt-auto pt-12 text-center">
-        <p className="font-display text-lg text-ink-muted">
+        <p className="font-display text-base sm:text-lg text-ink-muted">
           Tool, bukan api. File yang kamu unduh milikmu — tak pernah melewati server kami.
         </p>
       </footer>
@@ -158,34 +200,52 @@ function App() {
 }
 
 function IdleHint() {
+  const platforms = ['TikTok', 'Instagram', 'YouTube', 'X', 'Spotify', 'SoundCloud', 'Deezer', 'Pixiv', 'Bandcamp']
   return (
-    <motion.p
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 0.2, duration: 0.4 }}
-      className="pt-6 text-center font-mono text-xs text-ink-faint"
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3, duration: 0.5 }}
+      className="flex flex-col items-center gap-3 pt-8"
     >
-      TikTok · Instagram · YouTube · X · SoundCloud — dan masih banyak lagi.
-    </motion.p>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {platforms.map((p, i) => (
+          <motion.span
+            key={p}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.35 + i * 0.05, type: 'spring', stiffness: 300, damping: 20 }}
+            className="rounded-full border border-glass-border-soft bg-glass px-3 py-1 text-xs text-ink-faint transition-colors hover:border-glass-border hover:text-ink-muted"
+          >
+            {p}
+          </motion.span>
+        ))}
+      </div>
+      <p className="font-mono text-[11px] text-ink-faint/60">— dan masih banyak lagi.</p>
+    </motion.div>
   )
 }
 
 function SkeletonState() {
   return (
-    <div className="glass w-full animate-pulse rounded-[24px] p-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass w-full rounded-[24px] p-6"
+    >
       <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="h-44 w-full rounded-2xl bg-glass-2 sm:h-auto sm:w-52" />
+        <div className="h-44 w-full rounded-2xl animate-shimmer sm:h-auto sm:w-52" />
         <div className="flex-1 space-y-3">
-          <div className="h-4 w-24 rounded-full bg-glass-2" />
-          <div className="h-6 w-4/5 rounded-lg bg-glass-2" />
-          <div className="h-3 w-2/3 rounded-lg bg-glass-2" />
+          <div className="h-4 w-24 rounded-full animate-shimmer" style={{ animationDelay: '0.1s' }} />
+          <div className="h-6 w-4/5 rounded-lg animate-shimmer" style={{ animationDelay: '0.2s' }} />
+          <div className="h-3 w-2/3 rounded-lg animate-shimmer" style={{ animationDelay: '0.3s' }} />
           <div className="mt-4 flex gap-2">
-            <div className="h-8 w-20 rounded-full bg-glass-2" />
-            <div className="h-8 w-20 rounded-full bg-glass-2" />
+            <div className="h-8 w-24 rounded-full animate-shimmer" style={{ animationDelay: '0.4s' }} />
+            <div className="h-8 w-24 rounded-full animate-shimmer" style={{ animationDelay: '0.5s' }} />
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 

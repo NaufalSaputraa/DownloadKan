@@ -1,17 +1,16 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { MediaResult, MediaDownload } from '../engines/media/types'
+import { useLocalBackend } from '../hooks/useLocalBackend'
 import { DEEZLOAD_BOT, telegramBotDeepLink } from '../lib/telegram'
 
 /**
  * Tentukan extension file yang benar dari type label dan URL.
- * Type label bisa berupa "Video Full HD (No Watermark)" — bukan extension valid.
  */
 function guessExtension(item: MediaDownload): string {
   const t = item.type.toLowerCase()
   const u = item.url.toLowerCase()
 
-  // Cek URL path untuk extension nyata
   try {
     const pathname = new URL(u).pathname
     const ext = pathname.split('.').pop()?.split('?')[0] ?? ''
@@ -20,7 +19,6 @@ function guessExtension(item: MediaDownload): string {
     }
   } catch { /* URL tidak valid, lanjut */ }
 
-  // Deteksi dari type label
   if (t.includes('flac') || t.includes('lossless')) return 'flac'
   if (t.includes('mp3') || t.includes('audio') || t.includes('music') || t.includes('sound')) return 'mp3'
   if (t.includes('m4a') || t.includes('aac')) return 'm4a'
@@ -31,7 +29,7 @@ function guessExtension(item: MediaDownload): string {
   if (t.includes('gif')) return 'gif'
   if (t.includes('webm')) return 'webm'
   if (t.includes('video') || t.includes('mp4') || t.includes('hd') || t.includes('sd')) return 'mp4'
-  return 'mp4' // default
+  return 'mp4'
 }
 
 function buildDownloadFilename(title: string, item: MediaDownload): string {
@@ -42,10 +40,127 @@ function buildDownloadFilename(title: string, item: MediaDownload): string {
   return `${safeName}.${ext}`
 }
 
+/* ------------------------------------------------------------------ */
+/*  Ikon SVG                                                          */
+/* ------------------------------------------------------------------ */
+function CopyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <motion.path
+        d="M5 13l4 4L19 7"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+      />
+    </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="animate-spin" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Komponen utama                                                    */
+/* ------------------------------------------------------------------ */
 export function MediaResult({ result }: { result: MediaResult }) {
   const [active, setActive] = useState(0)
+  const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
+  const [dlState, setDlState] = useState<'idle' | 'downloading' | 'done'>('idle')
+  const { isLocal, download: startLocalDownload } = useLocalBackend()
   const item = result.downloads[active]
   const platformTag = result.platform || 'media'
+
+  const handleCopy = useCallback(async () => {
+    if (copyState === 'copied') return
+    try {
+      await navigator.clipboard.writeText(item.url)
+      setCopyState('copied')
+      setTimeout(() => setCopyState('idle'), 2200)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = item.url
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopyState('copied')
+      setTimeout(() => setCopyState('idle'), 2200)
+    }
+  }, [item, copyState])
+
+  const handleDownload = useCallback(async () => {
+    if (dlState === 'downloading') return
+    setDlState('downloading')
+    const filename = buildDownloadFilename(result.title, item)
+
+    // Jika berjalan di standalone local core, kirim ke backend lokal
+    if (isLocal) {
+      try {
+        const isAudio = /mp3|audio|flac|music/i.test(item.type)
+        await startLocalDownload(
+          result.sourceUrl,
+          isAudio ? 'mp3' : 'best',
+          isAudio ? 'Music' : 'Videos',
+          filename,
+        )
+        setDlState('done')
+        setTimeout(() => setDlState('idle'), 3000)
+        return
+      } catch {
+        /* Fallback ke browser download jika local engine gagal */
+      }
+    }
+
+    const proxyUrl = `/api/proxy/download?url=${encodeURIComponent(item.url)}&filename=${encodeURIComponent(filename)}`
+    try {
+      const res = await fetch(proxyUrl)
+      if (!res.ok) throw new Error(`Status ${res.status}`)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
+      setDlState('done')
+      setTimeout(() => setDlState('idle'), 3000)
+    } catch {
+      window.open(item.url, '_blank', 'noopener,noreferrer')
+      setDlState('done')
+      setTimeout(() => setDlState('idle'), 3000)
+    }
+  }, [result.title, result.sourceUrl, item, dlState, isLocal, startLocalDownload])
 
   return (
     <motion.article
@@ -56,42 +171,40 @@ export function MediaResult({ result }: { result: MediaResult }) {
       className="glass w-full overflow-hidden rounded-[24px]"
     >
       <div className="grid grid-cols-1 gap-0 sm:grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[210px_minmax(0,1fr)]">
-        {/* Thumbnail */}
-        <div className="relative min-h-[160px] overflow-hidden bg-glass-2 sm:min-h-full">
+        {/* Thumbnail preview */}
+        <div className="relative aspect-video sm:aspect-auto sm:h-full overflow-hidden bg-glass-2 border-b sm:border-b-0 sm:border-r border-glass-border">
           {result.thumbnail ? (
             <img
               src={result.thumbnail}
-              alt=""
+              alt={result.title}
+              className="h-full w-full object-cover object-center transition-transform duration-500 hover:scale-105"
               loading="lazy"
-              className="h-full w-full min-h-[160px] object-cover"
             />
           ) : (
-            <div className="flex h-full min-h-[160px] items-center justify-center text-ink-faint">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
-                <path d="m9 9 5 3-5 3V9Z" fill="currentColor" />
+            <div className="flex h-full min-h-[140px] w-full items-center justify-center text-ink-faint">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M10 9l5 3-5 3V9z" fill="currentColor" />
               </svg>
             </div>
           )}
-          <div className="absolute top-3 left-3">
-            <span className="glass rounded-full px-2.5 py-1 text-[11px] font-medium tracking-wide text-ink">
-              {platformTag}
-            </span>
-          </div>
+          <span className="absolute bottom-2 left-2 rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-white">
+            {platformTag}
+          </span>
         </div>
 
-        {/* Body */}
-        <div className="flex min-w-0 max-w-full flex-col justify-between gap-4 overflow-hidden p-4 sm:p-5">
-          <div className="min-w-0 space-y-3">
+        {/* Content */}
+        <div className="flex flex-col justify-between p-4 sm:p-5 gap-4">
+          <div className="space-y-1.5 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-faint">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
                 Sumber
               </span>
               <span className="ms-auto rounded-full bg-glass-2 px-2 py-0.5 text-[11px] text-accent">
                 {result.engine}
               </span>
             </div>
-            <h2 className="line-clamp-2 break-words text-lg font-medium leading-snug text-ink">{result.title}</h2>
+            <h2 className="line-clamp-2 break-words text-base sm:text-lg font-medium leading-snug text-ink">{result.title}</h2>
             <p className="truncate max-w-full font-mono text-xs text-ink-faint" title={result.sourceUrl}>
               {result.sourceUrl}
             </p>
@@ -104,9 +217,9 @@ export function MediaResult({ result }: { result: MediaResult }) {
                   <button
                     key={i}
                     onClick={() => setActive(i)}
-                    className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+                    className={`rounded-full border px-3.5 py-1.5 text-xs sm:text-sm transition-colors ${
                       i === active
-                        ? 'border-accent bg-accent-soft text-accent'
+                        ? 'border-accent bg-accent-soft text-accent font-medium'
                         : 'border-glass-border-soft text-ink-muted hover:border-glass-border hover:text-ink'
                     }`}
                     aria-pressed={i === active}
@@ -126,9 +239,11 @@ export function MediaResult({ result }: { result: MediaResult }) {
                         <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="1.8" />
                         <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="1.8" />
                       </svg>
-                      Pratinjau Audio ({item.type})
+                      Pemutar Audio ({item.type})
                     </span>
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">Direct Stream</span>
+                    {!/preview|pratinjau/i.test(item.type) && (
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">Lagu Utuh</span>
+                    )}
                   </div>
                   <audio controls controlsList="nodownload" className="h-8 w-full rounded-lg accent-accent" src={item.url}>
                     Browser-mu tidak mendukung pemutar audio.
@@ -136,43 +251,82 @@ export function MediaResult({ result }: { result: MediaResult }) {
                 </div>
               )}
 
-              <div className="flex max-w-full flex-wrap items-center gap-2.5 pt-1 overflow-hidden">
-                <a
-                  href={item.url}
-                  download={buildDownloadFilename(result.title, item)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)]"
-                  title="Klik untuk mengunduh langsung atau ditangkap oleh IDM / ABDM / Download Manager"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Unduh {item.type}
-                </a>
-
+              <div className="flex max-w-full flex-wrap items-center gap-2 pt-1 overflow-hidden">
+                {/* Tombol Download Utama */}
                 <button
-                  onClick={() => {
-                    void navigator.clipboard.writeText(item.url)
-                    alert('Tautan direct berhasil disalin! Silakan paste di IDM / ABDM.')
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-glass-border bg-glass px-4 py-2.5 text-xs text-ink-muted transition-colors hover:text-ink"
-                  title="Salin URL langsung untuk di-paste di IDM / ABDM / Aria2"
+                  type="button"
+                  disabled={dlState === 'downloading'}
+                  onClick={handleDownload}
+                  className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs sm:text-sm font-medium transition-all ${
+                    dlState === 'done'
+                      ? 'bg-emerald-500/90 text-white'
+                      : dlState === 'downloading'
+                        ? 'bg-ink/70 text-paper cursor-wait'
+                        : 'bg-ink text-paper hover:bg-[oklch(86%_0.008_260)] active:scale-[0.97]'
+                  }`}
+                  title={isLocal ? "Unduh langsung ke folder Downloads HP/PC" : "Unduh via browser"}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="1.8" />
-                  </svg>
-                  Salin Tautan (IDM/ABDM)
+                  <AnimatePresence mode="wait" initial={false}>
+                    {dlState === 'downloading' ? (
+                      <motion.span key="spin" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
+                        <SpinnerIcon />
+                      </motion.span>
+                    ) : dlState === 'done' ? (
+                      <motion.span key="check" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
+                        <CheckIcon />
+                      </motion.span>
+                    ) : (
+                      <motion.span key="dl" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
+                        <DownloadIcon />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                  {dlState === 'downloading' ? 'Mengunduh…' : dlState === 'done' ? 'Tersimpan!' : isLocal ? `Simpan ${item.type}` : `Unduh ${item.type}`}
                 </button>
 
-                {/* Unduh penuh via bot Telegram (untuk lagu yang engine lokal tak punya full song) */}
+                {/* Tombol Salin Tautan dengan animasi feedback */}
+                <button
+                  onClick={handleCopy}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs transition-all duration-300 ${
+                    copyState === 'copied'
+                      ? 'border-emerald-400/50 bg-emerald-400/15 text-emerald-300 scale-[1.03]'
+                      : 'border-glass-border bg-glass text-ink-muted hover:text-ink hover:border-glass-border-strong active:scale-[0.97]'
+                  }`}
+                  title="Salin URL langsung untuk di-paste di IDM / ABDM / Aria2"
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    {copyState === 'copied' ? (
+                      <motion.span
+                        key="check"
+                        initial={{ opacity: 0, scale: 0.3, rotate: -90 }}
+                        animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                        exit={{ opacity: 0, scale: 0.3 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                      >
+                        <CheckIcon />
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="copy"
+                        initial={{ opacity: 0, scale: 0.3 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.3 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <CopyIcon />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                  {copyState === 'copied' ? 'Tersalin!' : 'Salin Tautan (IDM/ABDM)'}
+                </button>
+
+                {/* Unduh penuh via bot Telegram */}
                 {/deezer|spotify|apple|soundcloud|music|audio|mp3/i.test(`${result.platform} ${item.type}`) && (
                   <a
                     href={telegramBotDeepLink(DEEZLOAD_BOT, result.title)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-2.5 text-xs font-medium text-sky-300 transition-colors hover:bg-sky-400/20"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-400/10 px-3.5 py-2 text-xs font-medium text-sky-300 transition-colors hover:bg-sky-400/20"
                     title={`Unduh lagu ini lewat bot Telegram ${DEEZLOAD_BOT}`}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -186,14 +340,14 @@ export function MediaResult({ result }: { result: MediaResult }) {
                 {result.downloads.length > 1 && (
                   <button
                     onClick={() => exportGalleryToPdf(result)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent-soft px-4 py-2.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent-soft px-3.5 py-2 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
                     title="Gabungkan galeri foto menjadi 1 file PDF"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    Ekspor Galeri ke PDF ({result.downloads.length} Item)
+                    PDF ({result.downloads.length} Item)
                   </button>
                 )}
               </div>
