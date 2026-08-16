@@ -20,9 +20,9 @@ describe('storage library', () => {
     })
 
     it('saves and merges settings patches', () => {
-      saveSettings({ jerexdKey: 'custom_key_123' })
+      saveSettings({ audioQuality: 'mp3_320' })
       const updated = getSettings()
-      expect(updated.jerexdKey).toBe('custom_key_123')
+      expect(updated.audioQuality).toBe('mp3_320')
       expect(updated.defaultFormat).toBe('mp4')
     })
   })

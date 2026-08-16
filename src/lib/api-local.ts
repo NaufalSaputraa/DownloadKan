@@ -15,6 +15,25 @@ export interface BackendHealth {
   platform: string
 }
 
+export interface AnalyzedDownload {
+  format_id?: string
+  type: string
+  ext?: string
+  filesize?: number
+  url?: string
+  local?: boolean
+}
+
+export interface AnalyzedMedia {
+  title: string
+  thumbnail?: string
+  duration?: number
+  platform: string
+  sourceUrl: string
+  downloads: AnalyzedDownload[]
+  engine: string
+}
+
 export interface LocalMusicItem {
   id: string
   title: string
@@ -75,6 +94,20 @@ export async function checkLocalHealth(): Promise<BackendHealth | null> {
   } catch {
     return null
   }
+}
+
+export async function analyzeLocalMedia(url: string, signal?: AbortSignal): Promise<AnalyzedMedia> {
+  const res = await fetch(`${getBackendBaseUrl()}/api/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+    signal,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Gagal menganalisis media.' }))
+    throw new Error(err.detail || `Status ${res.status}`)
+  }
+  return res.json()
 }
 
 export async function startLocalDownload(params: {

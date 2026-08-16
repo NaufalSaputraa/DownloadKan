@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { act } from 'react'
 import { MediaResult } from './MediaResult'
-import type { MediaResult as MediaResultType } from '../engines/media/types'
+import type { AnalyzedMedia as MediaResultType } from '../lib/api-local'
 
 describe('MediaResult component', () => {
   const mockResult: MediaResultType = {

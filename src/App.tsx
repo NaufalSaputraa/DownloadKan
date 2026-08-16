@@ -25,11 +25,11 @@ function App() {
   const handleSubmit = useCallback(
     (url: string) => {
       if (state.status === 'analyzing') return
-      void analyze(url, settings.jerexdKey).catch((e: unknown) => {
+      void analyze(url).catch((e: unknown) => {
         push((e as Error).message, 'error')
       })
     },
-    [state.status, analyze, settings.jerexdKey, push],
+    [state.status, analyze, push],
   )
 
   // Tangani tautan masukan dari PWA Share Target (?url=... atau ?text=...)

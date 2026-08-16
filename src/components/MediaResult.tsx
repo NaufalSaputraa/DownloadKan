@@ -1,21 +1,22 @@
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { MediaResult, MediaDownload } from '../engines/media/types'
+import type { AnalyzedMedia as MediaResult, AnalyzedDownload as MediaDownload } from '../lib/api-local'
 import { useLocalBackend } from '../hooks/useLocalBackend'
-import { DEEZLOAD_BOT, telegramBotDeepLink } from '../lib/telegram'
 
 /**
  * Tentukan extension file yang benar dari type label dan URL.
  */
 function guessExtension(item: MediaDownload): string {
   const t = item.type.toLowerCase()
-  const u = item.url.toLowerCase()
+  const u = (item.url || '').toLowerCase()
 
   try {
-    const pathname = new URL(u).pathname
-    const ext = pathname.split('.').pop()?.split('?')[0] ?? ''
-    if (['mp4', 'webm', 'mkv', 'mov', 'mp3', 'flac', 'wav', 'ogg', 'aac', 'm4a', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'pdf'].includes(ext)) {
-      return ext
+    if (u) {
+      const pathname = new URL(u).pathname
+      const ext = pathname.split('.').pop()?.split('?')[0] ?? ''
+      if (['mp4', 'webm', 'mkv', 'mov', 'mp3', 'flac', 'wav', 'ogg', 'aac', 'm4a', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'pdf'].includes(ext)) {
+        return ext
+      }
     }
   } catch { /* URL tidak valid, lanjut */ }
 
@@ -99,13 +100,14 @@ export function MediaResult({ result }: { result: MediaResult }) {
 
   const handleCopy = useCallback(async () => {
     if (copyState === 'copied') return
+    const targetUrl = item.url || result.sourceUrl || window.location.href
     try {
-      await navigator.clipboard.writeText(item.url)
+      await navigator.clipboard.writeText(targetUrl)
       setCopyState('copied')
       setTimeout(() => setCopyState('idle'), 2200)
     } catch {
       const ta = document.createElement('textarea')
-      ta.value = item.url
+      ta.value = targetUrl
       ta.style.position = 'fixed'
       ta.style.opacity = '0'
       document.body.appendChild(ta)
@@ -115,7 +117,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
       setCopyState('copied')
       setTimeout(() => setCopyState('idle'), 2200)
     }
-  }, [item, copyState])
+  }, [item, copyState, result.sourceUrl])
 
   const handleDownload = useCallback(async () => {
     if (dlState === 'downloading') return
@@ -140,7 +142,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
       }
     }
 
-    const proxyUrl = `/api/proxy/download?url=${encodeURIComponent(item.url)}&filename=${encodeURIComponent(filename)}`
+    const proxyUrl = `/api/proxy/download?url=${encodeURIComponent(item.url || result.sourceUrl)}&filename=${encodeURIComponent(filename)}`
     try {
       const res = await fetch(proxyUrl)
       if (!res.ok) throw new Error(`Status ${res.status}`)
@@ -319,22 +321,6 @@ export function MediaResult({ result }: { result: MediaResult }) {
                   </AnimatePresence>
                   {copyState === 'copied' ? 'Tersalin!' : 'Salin Tautan (IDM/ABDM)'}
                 </button>
-
-                {/* Unduh penuh via bot Telegram */}
-                {/deezer|spotify|apple|soundcloud|music|audio|mp3/i.test(`${result.platform} ${item.type}`) && (
-                  <a
-                    href={telegramBotDeepLink(DEEZLOAD_BOT, result.title)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-400/10 px-3.5 py-2 text-xs font-medium text-sky-300 transition-colors hover:bg-sky-400/20"
-                    title={`Unduh lagu ini lewat bot Telegram ${DEEZLOAD_BOT}`}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <path d="M21.9 4.1 18.8 19.3c-.2 1-.8 1.2-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L7.5 12.5 2.8 11c-1-.3-1-1 .2-1.5l17.6-6.8c.9-.3 1.6.2 1.3 1.4Z" />
-                    </svg>
-                    Telegram
-                  </a>
-                )}
 
                 {/* PDF Exporter untuk Galeri / Slide Foto */}
                 {result.downloads.length > 1 && (
