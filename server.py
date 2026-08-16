@@ -1,30 +1,26 @@
-"""
-DownloadKan — Standalone Local Core Backend Server
-Menggabungkan yt-dlp (Video), streamrip (Lossless FLAC), dan torlink/aria2c (Torrent)
-Menyajikan Web UI DownloadKan langsung di http://127.0.0.1:8000
-"""
-
-import asyncio
-import json
 import os
-import re
-import shutil
-import subprocess
 import sys
+import json
+import shutil
+import asyncio
+import subprocess
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
+import requests
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-import requests
 
-app = FastAPI(title="DownloadKan Standalone Core", version="1.0.0")
+app = FastAPI(
+    title="DownloadKan Standalone Local Core",
+    version="2.0.0",
+    description="Universal Media, FLAC Lossless & Torrent Downloader",
+)
 
-# CORS middleware for local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,7 +76,6 @@ active_jobs: Dict[str, Dict[str, Any]] = {}
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        # Kirim status aktif saat connect
         await websocket.send_json({"type": "initial_state", "jobs": active_jobs})
         while True:
             await websocket.receive_text()
@@ -91,7 +86,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 # ============================================================================
-# HEALTH & SYSTEM STATUS
+# HEALTH & ENVIRONMENT CHECK
 # ============================================================================
 @app.get("/api/health")
 async def health_check():
@@ -127,6 +122,102 @@ async def health_check():
 
 
 # ============================================================================
+# METADATA & LRCLIB LYRICS TAGGING HELPER (mutagen)
+# ============================================================================
+def fetch_lrclib_lyrics(title: str, artist: str, album: str = "", duration: int = 0) -> Optional[str]:
+    try:
+        params = {
+            "track_name": title,
+            "artist_name": artist,
+        }
+        if album:
+            params["album_name"] = album
+        if duration > 0:
+            params["duration"] = str(duration)
+
+        r = requests.get("https://lrclib.net/api/get", params=params, timeout=4)
+        if r.status_code == 200:
+            data = r.json()
+            return data.get("syncedLyrics") or data.get("plainLyrics")
+    except Exception:
+        pass
+    return None
+
+
+def embed_mp3_metadata(file_path: Path, title: str, artist: str, album: str, cover_url: str = "", lyrics: str = ""):
+    try:
+        from mutagen.easyid3 import EasyID3
+        from mutagen.id3 import ID3, APIC, USLT, ID3NoHeaderError
+
+        try:
+            audio = EasyID3(str(file_path))
+        except ID3NoHeaderError:
+            audio = EasyID3()
+            audio.save(str(file_path))
+
+        if title:
+            audio["title"] = title
+        if artist:
+            audio["artist"] = artist
+        if album:
+            audio["album"] = album
+        audio.save()
+
+        # Cover Art & Lyrics via raw ID3
+        id3 = ID3(str(file_path))
+        if cover_url:
+            try:
+                cover_data = requests.get(cover_url, timeout=5).content
+                id3.add(APIC(
+                    encoding=3,
+                    mime="image/jpeg",
+                    type=3, # front cover
+                    desc="Cover",
+                    data=cover_data,
+                ))
+            except Exception:
+                pass
+
+        if lyrics:
+            id3.add(USLT(encoding=3, lang="eng", desc="Lyrics", text=lyrics))
+
+        id3.save(v2_version=3)
+    except Exception as e:
+        print(f"Warning: mutagen MP3 embed error: {e}")
+
+
+def embed_flac_metadata(file_path: Path, title: str, artist: str, album: str, cover_url: str = "", lyrics: str = ""):
+    try:
+        from mutagen.flac import FLAC, Picture
+
+        audio = FLAC(str(file_path))
+        if title:
+            audio["title"] = title
+        if artist:
+            audio["artist"] = artist
+        if album:
+            audio["album"] = album
+        if lyrics:
+            audio["lyrics"] = lyrics
+
+        if cover_url:
+            try:
+                cover_data = requests.get(cover_url, timeout=5).content
+                pic = Picture()
+                pic.type = 3
+                pic.mime = "image/jpeg"
+                pic.desc = "Cover"
+                pic.data = cover_data
+                audio.add_picture(pic)
+            except Exception:
+                pass
+
+        audio.save()
+    except Exception as e:
+        print(f"Warning: mutagen FLAC embed error: {e}")
+
+
+# ============================================================================
 # UNIVERSAL MEDIA ANALYZER (yt-dlp)
 # ============================================================================
 class AnalyzeRequest(BaseModel):
@@ -141,13 +232,13 @@ async def analyze_url(req: AnalyzeRequest):
     try:
         import yt_dlp
     except ImportError:
-        raise HTTPException(status_code=500, detail="Library yt-dlp belum terpasang. Jalankan pip install yt-dlp")
+        raise HTTPException(status_code=500, detail="Library yt-dlp belum terpasang.")
 
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
+        "extract_flat": False,
         "skip_download": True,
-        "extract_flat": "in_playlist",
     }
 
     try:
@@ -158,20 +249,16 @@ async def analyze_url(req: AnalyzeRequest):
 
         info = await loop.run_in_executor(None, extract)
         if not info:
-            raise HTTPException(status_code=404, detail="Tidak dapat mengekstrak metadata.")
+            raise HTTPException(status_code=400, detail="Tidak dapat membaca media dari URL ini.")
 
-        title = info.get("title", "Media Download")
+        title = info.get("title", "Media Tanpa Judul")
         thumbnail = info.get("thumbnail")
         duration = info.get("duration")
         extractor = info.get("extractor", "media").lower()
 
-        # Format picker
         formats_list = []
         formats = info.get("formats", [])
 
-        # Filter video + audio formats
-        best_video = None
-        best_audio = None
         for f in formats:
             vcodec = f.get("vcodec", "none")
             acodec = f.get("acodec", "none")
@@ -180,10 +267,10 @@ async def analyze_url(req: AnalyzeRequest):
 
             if vcodec != "none" and url_link:
                 label = f"Video {height}p" if height else "Video HD"
-                if height and height >= 1080:
-                    label = f"Video Full HD ({height}p)"
-                elif height and height >= 2160:
+                if height and height >= 2160:
                     label = f"Video 4K Ultra HD ({height}p)"
+                elif height and height >= 1080:
+                    label = f"Video Full HD ({height}p)"
                 formats_list.append({
                     "format_id": f.get("format_id"),
                     "type": label,
@@ -201,7 +288,6 @@ async def analyze_url(req: AnalyzeRequest):
                     "url": url_link,
                 })
 
-        # Jika format direct tidak banyak, sediakan opsi download lokal standar
         downloads = []
         if formats_list:
             downloads = formats_list[:8]
@@ -231,12 +317,15 @@ async def analyze_url(req: AnalyzeRequest):
 class DownloadJobRequest(BaseModel):
     url: str
     format: str = "best" # "best_video", "mp3", "flac", "torrent"
-    filename: Optional[str] = None
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    artwork: Optional[str] = None
     category: str = "Videos" # "Videos", "Music", "Torrents"
 
 @app.post("/api/download")
-async def start_download_job(req: DownloadJobRequest):
-    job_id = str(abs(hash(req.url + req.format + str(asyncio.get_event_loop().time()))))
+async def start_download(req: DownloadJobRequest):
+    job_id = f"job_{len(active_jobs) + 1}_{int(asyncio.get_event_loop().time())}"
     
     target_dir = DOWNLOAD_DIR / req.category
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -249,18 +338,18 @@ async def start_download_job(req: DownloadJobRequest):
         "progress": 0,
         "speed": "0 KB/s",
         "eta": "…",
-        "filename": req.filename or "Memproses...",
+        "filename": req.title or "Memproses...",
     }
 
-    # Jalankan background worker
-    asyncio.create_task(run_download_worker(job_id, req.url, req.format, target_dir))
-
+    asyncio.create_task(run_download_worker(job_id, req, target_dir))
     return {"status": "started", "job_id": job_id}
 
 
-async def run_download_worker(job_id: str, url: str, format_type: str, target_dir: Path):
+async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: Path):
     active_jobs[job_id]["status"] = "downloading"
     await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+
+    url = req.url
 
     # 1. TORRENT via aria2c
     if url.startswith("magnet:") or url.endswith(".torrent"):
@@ -281,7 +370,99 @@ async def run_download_worker(job_id: str, url: str, format_type: str, target_di
                 await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
                 return
 
-    # 2. VIDEO & AUDIO via yt-dlp
+    # 2. AUDIO & MUSIC (SpotiFLAC Pattern + Mutagen Lyrics Embedding)
+    if req.category == "Music" or req.format in ["mp3", "flac", "audio"]:
+        try:
+            import yt_dlp
+
+            # Resolve query jika berupa teks judul/artis
+            search_target = url
+            if not url.startswith("http"):
+                search_target = f"ytsearch1:{req.artist or ''} {req.title or url} audio"
+
+            out_filename_base = f"{req.artist} - {req.title}" if (req.artist and req.title) else "%(title)s"
+
+            def ytdl_progress_hook(d):
+                if d["status"] == "downloading":
+                    total = d.get("total_bytes") or d.get("total_bytes_estimate") or 1
+                    downloaded = d.get("downloaded_bytes", 0)
+                    pct = round((downloaded / total) * 100, 1)
+                    speed_bytes = d.get("speed", 0) or 0
+                    eta_s = d.get("eta", 0) or 0
+
+                    speed_str = f"{speed_bytes / 1024 / 1024:.1f} MB/s" if speed_bytes > 1024 * 1024 else f"{speed_bytes / 1024:.0f} KB/s"
+                    eta_str = f"{eta_s}s" if eta_s < 60 else f"{eta_s // 60}m {eta_s % 60}s"
+
+                    active_jobs[job_id]["progress"] = pct
+                    active_jobs[job_id]["speed"] = speed_str
+                    active_jobs[job_id]["eta"] = eta_str
+                    asyncio.run(manager.broadcast({"type": "job_update", "job": active_jobs[job_id]}))
+
+            is_flac = req.format == "flac"
+            final_ext = "flac" if is_flac else "mp3"
+            
+            ydl_opts = {
+                "outtmpl": str(target_dir / f"{out_filename_base}.%(ext)s"),
+                "progress_hooks": [ytdl_progress_hook],
+                "quiet": True,
+                "no_warnings": True,
+                "format": "ba/b/18",
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"]
+                    }
+                },
+                "postprocessors": [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": final_ext,
+                    "preferredquality": "0" if is_flac else "320",
+                }],
+            }
+
+            loop = asyncio.get_event_loop()
+            def do_music_download():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(search_target, download=True)
+                    actual_title = req.title or info.get("title", "Track")
+                    actual_artist = req.artist or info.get("artist") or info.get("uploader", "")
+                    
+                    # Cari file yang terdownload
+                    dest_path = target_dir / f"{actual_artist} - {actual_title}.{final_ext}" if (req.artist and req.title) else target_dir / f"{info.get('title')}.{final_ext}"
+                    if not dest_path.exists():
+                        # Fallback cari file terbaru dengan ekstensi final_ext
+                        for f in sorted(target_dir.glob(f"*.{final_ext}"), key=os.path.getmtime, reverse=True):
+                            dest_path = f
+                            break
+
+                    # Ambil Lirik LRCLIB
+                    lyrics_text = fetch_lrclib_lyrics(actual_title, actual_artist, req.album or "", info.get("duration", 0))
+                    if lyrics_text:
+                        lrc_path = dest_path.with_suffix(".lrc")
+                        try:
+                            lrc_path.write_text(lyrics_text, encoding="utf-8")
+                        except Exception:
+                            pass
+
+                    # Embed Tag & Cover Art Mutagen
+                    cover = req.artwork or info.get("thumbnail", "")
+                    if is_flac:
+                        embed_flac_metadata(dest_path, actual_title, actual_artist, req.album or "", cover, lyrics_text or "")
+                    else:
+                        embed_mp3_metadata(dest_path, actual_title, actual_artist, req.album or "", cover, lyrics_text or "")
+
+            await loop.run_in_executor(None, do_music_download)
+            active_jobs[job_id]["status"] = "done"
+            active_jobs[job_id]["progress"] = 100
+            await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+            return
+
+        except Exception as err:
+            active_jobs[job_id]["status"] = "failed"
+            active_jobs[job_id]["error"] = str(err)
+            await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+            return
+
+    # 3. VIDEO VIA yt-dlp
     try:
         import yt_dlp
 
@@ -299,7 +480,6 @@ async def run_download_worker(job_id: str, url: str, format_type: str, target_di
                 active_jobs[job_id]["progress"] = pct
                 active_jobs[job_id]["speed"] = speed_str
                 active_jobs[job_id]["eta"] = eta_str
-                active_jobs[job_id]["filename"] = Path(d.get("filename", "")).name or "Downloading..."
                 asyncio.run(manager.broadcast({"type": "job_update", "job": active_jobs[job_id]}))
 
         ydl_opts = {
@@ -307,23 +487,13 @@ async def run_download_worker(job_id: str, url: str, format_type: str, target_di
             "progress_hooks": [ytdl_progress_hook],
             "quiet": True,
             "no_warnings": True,
+            "format": "bestvideo+bestaudio/best/18",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"]
+                }
+            },
         }
-
-        if format_type in ["mp3", "audio"]:
-            ydl_opts["format"] = "bestaudio/best"
-            ydl_opts["postprocessors"] = [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "320",
-            }]
-        elif format_type == "flac":
-            ydl_opts["format"] = "bestaudio/best"
-            ydl_opts["postprocessors"] = [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "flac",
-            }]
-        else:
-            ydl_opts["format"] = "bestvideo+bestaudio/best"
 
         loop = asyncio.get_event_loop()
         def do_download():
@@ -342,67 +512,101 @@ async def run_download_worker(job_id: str, url: str, format_type: str, target_di
 
 
 # ============================================================================
-# MULTI-ENGINE MUSIC SEARCH (Deezer, iTunes, LRCLIB Synced Lyrics)
+# UNIFIED MULTI-SEARCH (YouTube Video + YouTube Music + Lossless Tracks)
 # ============================================================================
-@app.get("/api/search/music")
-async def search_music(q: str):
+@app.get("/api/search/unified")
+async def search_unified(q: str):
     query = q.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Kata kunci pencarian wajib diisi.")
 
-    results = []
+    videos = []
+    musics = []
 
-    # 1. iTunes API
+    # 1. YouTube Video & Music search via yt-dlp flat search
+    try:
+        import yt_dlp
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "skip_download": True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            yt_res = ydl.extract_info(f"ytsearch10:{query}", download=False)
+            if yt_res and "entries" in yt_res:
+                for entry in yt_res["entries"]:
+                    if not entry:
+                        continue
+                    dur = entry.get("duration", 0) or 0
+                    mins = int(dur // 60)
+                    secs = int(dur % 60)
+                    dur_str = f"{mins}:{secs:02d}" if dur else ""
+                    
+                    vid_url = f"https://www.youtube.com/watch?v={entry.get('id')}"
+                    thumb = entry.get("thumbnail") or f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg"
+
+                    videos.append({
+                        "id": entry.get("id"),
+                        "title": entry.get("title"),
+                        "channel": entry.get("uploader") or entry.get("channel"),
+                        "duration": dur,
+                        "duration_str": dur_str,
+                        "thumbnail": thumb,
+                        "url": vid_url,
+                        "view_count": entry.get("view_count"),
+                        "type": "video",
+                        "source": "YouTube",
+                    })
+    except Exception as e:
+        print(f"YouTube search notice: {e}")
+
+    # 2. Lossless Music Search (iTunes / Apple Music / Deezer)
     try:
         r = requests.get(
             f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&media=music&limit=10",
-            timeout=5,
+            timeout=4,
         )
         if r.status_code == 200:
             for item in r.json().get("results", []):
                 artwork = item.get("artworkUrl100", "").replace("100x100bb", "600x600bb")
-                results.append({
-                    "id": str(item.get("trackId")),
+                dur_s = item.get("trackTimeMillis", 0) // 1000
+                musics.append({
+                    "id": f"music_{item.get('trackId')}",
                     "title": item.get("trackName"),
                     "artist": item.get("artistName"),
                     "album": item.get("collectionName"),
                     "artwork": artwork,
                     "preview": item.get("previewUrl"),
-                    "source": "Apple Music",
-                    "duration": item.get("trackTimeMillis", 0) // 1000,
+                    "duration": dur_s,
+                    "duration_str": f"{dur_s // 60}:{dur_s % 60:02d}",
+                    "type": "music",
+                    "source": "Lossless / FLAC 24-bit",
+                    "direct_url": item.get("trackViewUrl"),
                 })
     except Exception:
         pass
 
-    # 2. Deezer API (via search)
-    try:
-        r = requests.get(
-            f"https://api.deezer.com/search?q={urllib.parse.quote(query)}&limit=10",
-            timeout=5,
-        )
-        if r.status_code == 200:
-            for item in r.json().get("data", []):
-                results.append({
-                    "id": str(item.get("id")),
-                    "title": item.get("title"),
-                    "artist": item.get("artist", {}).get("name"),
-                    "album": item.get("album", {}).get("title"),
-                    "artwork": item.get("album", {}).get("cover_big"),
-                    "preview": item.get("preview"),
-                    "source": "Deezer (FLAC)",
-                    "duration": item.get("duration", 0),
-                })
-    except Exception:
-        pass
+    return {
+        "query": query,
+        "videos": videos,
+        "musics": musics,
+        "total": len(videos) + len(musics),
+    }
 
-    return {"query": query, "results": results}
+
+@app.get("/api/search/music")
+async def search_music(q: str):
+    res = await search_unified(q)
+    return {"query": q, "results": res["musics"]}
 
 
 # ============================================================================
-# MULTI-SOURCE TORRENT SEARCH (torlink Aggregator: TPB, Nyaa, YTS, 1337x)
+# MULTI-SOURCE TORRENT SEARCH (torlink Aggregator: TPB, Nyaa, YTS)
 # ============================================================================
 @app.get("/api/search/torrent")
 async def search_torrent(q: str):
+    import re
     query = q.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Kata kunci torrent wajib diisi.")
@@ -433,7 +637,7 @@ async def search_torrent(q: str):
     except Exception:
         pass
 
-    # 2. Nyaa.si (Anime & Media)
+    # 2. Nyaa.si
     try:
         r = requests.get(
             f"https://nyaa.si/?f=0&c=0_0&q={urllib.parse.quote(query)}",
@@ -460,7 +664,6 @@ async def search_torrent(q: str):
     except Exception:
         pass
 
-    # Sort hits by seeders descending
     hits.sort(key=lambda x: x.get("seeders", 0), reverse=True)
     return {"query": query, "results": hits}
 

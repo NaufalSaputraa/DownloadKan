@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { SearchBar } from './components/SearchBar'
 import { MediaResult } from './components/MediaResult'
 import { TorrentPanel } from './components/TorrentPanel'
-import { MusicSearchResults } from './components/MusicSearchResults'
+import { UnifiedSearchResults } from './components/UnifiedSearchResults'
 import { SettingsSheet } from './components/SettingsSheet'
 import { Toaster } from './components/ui/Toast'
 import { DEEZLOAD_BOT, telegramBotDeepLink } from './lib/telegram'
@@ -157,11 +157,12 @@ function App() {
               {state.status === 'analyzing' && <SkeletonState />}
               {state.status === 'error' && <ErrorState message={state.error ?? ''} url={state.detection?.url} />}
               {state.status === 'done' && state.result && <MediaResult result={state.result} />}
-              {state.status === 'search_done' && state.searchResults && (
-                <MusicSearchResults
+              {state.status === 'unified_search_done' && state.unifiedResults && (
+                <UnifiedSearchResults
                   query={state.searchQuery ?? ''}
-                  results={state.searchResults}
-                  onSelectTrack={(link) => handleSubmit(link)}
+                  videos={state.unifiedResults.videos}
+                  musics={state.unifiedResults.musics}
+                  onSelectUrl={(link) => handleSubmit(link)}
                 />
               )}
               {state.status === 'idle' && <IdleHint />}

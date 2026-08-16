@@ -24,6 +24,28 @@ export interface LocalMusicItem {
   preview?: string
   source: string
   duration?: number
+  duration_str?: string
+  direct_url?: string
+}
+
+export interface LocalVideoItem {
+  id: string
+  title: string
+  channel?: string
+  duration?: number
+  duration_str?: string
+  thumbnail?: string
+  url: string
+  view_count?: number
+  type: string
+  source: string
+}
+
+export interface UnifiedSearchResult {
+  query: string
+  videos: LocalVideoItem[]
+  musics: LocalMusicItem[]
+  total: number
 }
 
 export interface LocalTorrentItem {
@@ -55,20 +77,42 @@ export async function checkLocalHealth(): Promise<BackendHealth | null> {
   }
 }
 
-export async function startLocalDownload(
-  url: string,
-  format: string = 'best',
-  category: 'Videos' | 'Music' | 'Torrents' = 'Videos',
-  filename?: string,
-): Promise<{ status: string; job_id: string }> {
+export async function startLocalDownload(params: {
+  url: string
+  format?: string
+  category?: 'Videos' | 'Music' | 'Torrents'
+  title?: string
+  artist?: string
+  album?: string
+  artwork?: string
+}): Promise<{ status: string; job_id: string }> {
   const res = await fetch(`${getBackendBaseUrl()}/api/download`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, format, category, filename }),
+    body: JSON.stringify({
+      url: params.url,
+      format: params.format || 'best',
+      category: params.category || 'Videos',
+      title: params.title,
+      artist: params.artist,
+      album: params.album,
+      artwork: params.artwork,
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Gagal memulai unduhan lokal.' }))
     throw new Error(err.detail || `Status ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function searchLocalUnified(query: string, signal?: AbortSignal): Promise<UnifiedSearchResult> {
+  const res = await fetch(
+    `${getBackendBaseUrl()}/api/search/unified?q=${encodeURIComponent(query)}`,
+    { signal },
+  )
+  if (!res.ok) {
+    return { query, videos: [], musics: [], total: 0 }
   }
   return res.json()
 }

@@ -70,7 +70,7 @@ export function useLocalBackend() {
       category: 'Videos' | 'Music' | 'Torrents' = 'Videos',
       filename?: string,
     ) => {
-      return startLocalDownload(url, format, category, filename)
+      return startLocalDownload({ url, format, category, title: filename })
     },
     [],
   )

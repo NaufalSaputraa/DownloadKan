@@ -20,15 +20,15 @@
 
 <br />
 
-| 🎵 Pencarian Media & Musik FLAC | 👾 Multi-Source Torrent Aggregator |
+| 🎵 Pencarian Terpadu (YouTube Video & Musik) | 👾 Multi-Source Torrent Aggregator |
 |:---:|:---:|
-| <img src="docs/assets/ui-media.png" alt="Media Search Results" width="400" /> | <img src="docs/assets/ui-torrent.png" alt="Torrent Search Results" width="400" /> |
+| <img src="docs/assets/ui-unified-search.png" alt="Unified Search Results (YouTube & Lossless Music)" width="400" /> | <img src="docs/assets/ui-torrent.png" alt="Torrent Search Results" width="400" /> |
 
 <br />
 
-| ⚡ Antrean Unduhan Real-Time | ⚙️ Pengaturan Engine Lokal |
+| ⚡ Unduhan 100% Selesai & Lirik LRCLIB | ⚙️ Pengaturan Engine Lokal |
 |:---:|:---:|
-| <img src="docs/assets/ui-download-progress.png" alt="Download Progress Queue" width="400" /> | <img src="docs/assets/ui-settings.png" alt="Settings & Engine Health Modal" width="400" /> |
+| <img src="docs/assets/ui-download-success.png" alt="Download 100% Completed with Speed and ETA" width="400" /> | <img src="docs/assets/ui-settings.png" alt="Settings & Engine Health Modal" width="400" /> |
 
 ---
 
