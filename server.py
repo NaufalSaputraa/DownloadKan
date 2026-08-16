@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import json
 import shutil
 import asyncio
@@ -119,6 +120,21 @@ async def health_check():
         },
         "platform": sys.platform,
     }
+
+
+# ============================================================================
+# FILENAME SANITIZER (Clean & Tidy Names)
+# ============================================================================
+def sanitize_clean_name(name: str) -> str:
+    if not name:
+        return "DownloadKan_Media"
+    # 1. Bersihkan noise / tag video YouTube yang mengganggu
+    clean = re.sub(r"\[(Official Video|Official Audio|MV|HD|4K|Lyrics|Audio|Full Video|Remastered|4K Remaster|Video)\]", "", name, flags=re.IGNORECASE)
+    clean = re.sub(r"\((Official Video|Official Audio|Official Music Video|MV|HD|4K|Lyrics|Audio|Full Video|Remastered|4K Remaster|Lyric Video|Audio Video)\)", "", clean, flags=re.IGNORECASE)
+    # 2. Hapus karakter terlarang di Windows/Linux/Android/Termux
+    clean = re.sub(r'[\\/*?:"<>|#]', "", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    return clean or "DownloadKan_Media"
 
 
 # ============================================================================
@@ -423,19 +439,28 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
             def do_music_download():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(search_target, download=True)
-                    actual_title = req.title or info.get("title", "Track")
-                    actual_artist = req.artist or info.get("artist") or info.get("uploader", "")
+                    raw_title = req.title or info.get("title", "Track")
+                    raw_artist = req.artist or info.get("artist") or info.get("uploader", "")
+                    raw_album = req.album or ""
+
+                    clean_title = sanitize_clean_name(raw_title)
+                    clean_artist = sanitize_clean_name(raw_artist)
+                    clean_album = sanitize_clean_name(raw_album)
                     
-                    # Cari file yang terdownload
-                    dest_path = target_dir / f"{actual_artist} - {actual_title}.{final_ext}" if (req.artist and req.title) else target_dir / f"{info.get('title')}.{final_ext}"
+                    clean_filename = f"{clean_artist} - {clean_title}.{final_ext}" if clean_artist else f"{clean_title}.{final_ext}"
+                    dest_path = target_dir / clean_filename
+
+                    # Jika file terdownload dengan nama sementara yt-dlp, rename ke clean_filename
                     if not dest_path.exists():
-                        # Fallback cari file terbaru dengan ekstensi final_ext
                         for f in sorted(target_dir.glob(f"*.{final_ext}"), key=os.path.getmtime, reverse=True):
-                            dest_path = f
+                            try:
+                                f.rename(dest_path)
+                            except Exception:
+                                dest_path = f
                             break
 
                     # Ambil Lirik LRCLIB
-                    lyrics_text = fetch_lrclib_lyrics(actual_title, actual_artist, req.album or "", info.get("duration", 0))
+                    lyrics_text = fetch_lrclib_lyrics(clean_title, clean_artist, clean_album, info.get("duration", 0))
                     if lyrics_text:
                         lrc_path = dest_path.with_suffix(".lrc")
                         try:
@@ -446,9 +471,9 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
                     # Embed Tag & Cover Art Mutagen
                     cover = req.artwork or info.get("thumbnail", "")
                     if is_flac:
-                        embed_flac_metadata(dest_path, actual_title, actual_artist, req.album or "", cover, lyrics_text or "")
+                        embed_flac_metadata(dest_path, clean_title, clean_artist, clean_album, cover, lyrics_text or "")
                     else:
-                        embed_mp3_metadata(dest_path, actual_title, actual_artist, req.album or "", cover, lyrics_text or "")
+                        embed_mp3_metadata(dest_path, clean_title, clean_artist, clean_album, cover, lyrics_text or "")
 
             await loop.run_in_executor(None, do_music_download)
             active_jobs[job_id]["status"] = "done"

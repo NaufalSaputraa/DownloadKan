@@ -120,28 +120,96 @@ function App() {
 
       {/* Main */}
       <main id="main" className="flex flex-col gap-4">
-        {/* Active Local Download Jobs Bar */}
-        {jobs.length > 0 && (
-          <section className="glass rounded-2xl p-4 border border-accent/30 space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink">Antrean Unduhan Lokal</h3>
-            {jobs.map((j) => (
-              <div key={j.id} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="truncate max-w-[260px] font-medium text-ink">{j.filename}</span>
-                  <span className="font-mono text-[11px] text-ink-muted">
-                    {j.speed} · ETA {j.eta} ({j.progress}%)
+        {/* Active Local Download Jobs Bar with Smooth Animations */}
+        <AnimatePresence>
+          {jobs.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="glass rounded-2xl p-4 border border-accent/40 shadow-lg shadow-accent/5 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
                   </span>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-ink">
+                    Antrean Unduhan Lokal ({jobs.length})
+                  </h3>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-glass-2">
-                  <div
-                    className="h-full rounded-full bg-accent transition-[width] duration-300"
-                    style={{ width: `${Math.max(j.progress, 3)}%` }}
-                  />
-                </div>
+                <span className="font-mono text-[10px] text-ink-muted">
+                  {jobs.some((j) => j.status === 'downloading') ? 'Sedang Memproses...' : 'Semua Selesai ✓'}
+                </span>
               </div>
-            ))}
-          </section>
-        )}
+
+              <div className="space-y-3">
+                {jobs.map((j) => (
+                  <motion.div
+                    key={j.id}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.25 }}
+                    className="rounded-xl bg-glass-2 p-3 space-y-2 border border-glass-border"
+                  >
+                    <div className="flex items-center justify-between text-xs gap-2">
+                      <div className="flex items-center gap-2 truncate">
+                        {j.status === 'done' ? (
+                          <span className="flex-shrink-0 text-emerald-400 font-bold">✓</span>
+                        ) : j.status === 'failed' ? (
+                          <span className="flex-shrink-0 text-rose-400 font-bold">✕</span>
+                        ) : (
+                          <svg className="animate-spin h-3.5 w-3.5 text-accent flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                        )}
+                        <span className="truncate font-medium text-ink" title={j.filename}>
+                          {j.filename}
+                        </span>
+                      </div>
+                      <div className="flex-shrink-0 font-mono text-[11px] text-ink-muted flex items-center gap-1.5">
+                        {j.status === 'done' ? (
+                          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-400 font-semibold">
+                            Tersimpan (100%)
+                          </span>
+                        ) : j.status === 'failed' ? (
+                          <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-rose-400">
+                            Gagal
+                          </span>
+                        ) : (
+                          <>
+                            <span>{j.speed}</span>
+                            <span className="text-ink-faint">· ETA {j.eta}</span>
+                            <span className="font-semibold text-accent">({j.progress}%)</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Smooth Progress Bar */}
+                    <div className="h-2 overflow-hidden rounded-full bg-glass border border-glass-border">
+                      <div
+                        className={`h-full rounded-full transition-[width] duration-300 ease-out ${
+                          j.status === 'done'
+                            ? 'bg-emerald-400'
+                            : j.status === 'failed'
+                            ? 'bg-rose-400'
+                            : 'bg-accent'
+                        }`}
+                        style={{ width: `${Math.max(j.progress, j.status === 'starting' ? 5 : 2)}%` }}
+                      />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence mode="wait">
           {tab === 'media' ? (

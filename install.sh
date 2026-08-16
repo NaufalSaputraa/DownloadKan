@@ -38,13 +38,13 @@ fi
 # 2. INSTALL DEPENDENSI SISTEM
 echo -e "${YELLOW}[2/5] Memasang paket sistem (Python, FFmpeg, Aria2, Git)...${NC}"
 if [ "$IS_TERMUX" = true ]; then
-    pkg update -y
+    pkg update -y || true
     pkg install -y python ffmpeg aria2 git curl nodejs
     
     # Setup Termux Storage Permission jika belum
     if [ ! -d "$HOME/storage" ]; then
         echo -e "${CYAN}Mengatur izin penyimpanan Android... Silakan izinkan popup di layar HP.${NC}"
-        termux-setup-storage
+        termux-setup-storage || true
     fi
 else
     if command -v apt-get >/dev/null 2>&1; then
@@ -57,7 +57,7 @@ else
     fi
 fi
 
-# 3. SETUP REPOSITORY & DEPENDENSI PYTHON
+# 3. SETUP REPOSITORY
 echo -e "${YELLOW}[3/5] Mengunduh core DownloadKan...${NC}"
 if [ -d "$INSTALL_DIR" ]; then
     cd "$INSTALL_DIR"
@@ -67,12 +67,18 @@ else
     cd "$INSTALL_DIR"
 fi
 
-echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, yt-dlp, streamrip, mutagen)...${NC}"
-pip install --upgrade pip
-pip install fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || true
-pip install streamrip || true
+# 4. DEPENDENSI PYTHON (Aman di Termux & Desktop)
+echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, yt-dlp, mutagen)...${NC}"
+if [ "$IS_TERMUX" = true ]; then
+    # Di Termux: JANGAN 'pip install -U pip' karena pip dikelola oleh paket python Termux
+    python3 -m pip install --no-cache-dir --break-system-packages fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || \
+    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || true
+else
+    python3 -m pip install --upgrade pip || true
+    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || true
+fi
 
-# 4. MEMBUAT EXECUTABLE GLOBAL (downloadkan)
+# 5. MEMBUAT EXECUTABLE GLOBAL (downloadkan)
 echo -e "${YELLOW}[5/5] Memasang shortcut perintah 'downloadkan'...${NC}"
 
 BIN_DIR="/usr/local/bin"
@@ -89,7 +95,7 @@ python3 "$INSTALL_DIR/cli.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/downloadkan"
 
-# 5. INTEGRASI ANDROID SHARE MENU (TERMUX URL OPENER)
+# 6. INTEGRASI ANDROID SHARE MENU (TERMUX URL OPENER)
 if [ "$IS_TERMUX" = true ]; then
     mkdir -p "$HOME/bin"
     cat << "EOF" > "$HOME/bin/termux-url-opener"
