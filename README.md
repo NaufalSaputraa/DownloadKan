@@ -12,6 +12,26 @@
 
 ---
 
+## 📸 Antarmuka & Showcase
+
+<div align="center">
+  <img src="docs/assets/ui-home.png" alt="DownloadKan Home UI" width="800" />
+</div>
+
+<br />
+
+| 🎵 Pencarian Media & Musik FLAC | 👾 Multi-Source Torrent Aggregator |
+|:---:|:---:|
+| <img src="docs/assets/ui-media.png" alt="Media Search Results" width="400" /> | <img src="docs/assets/ui-torrent.png" alt="Torrent Search Results" width="400" /> |
+
+<br />
+
+| ⚡ Antrean Unduhan Real-Time | ⚙️ Pengaturan Engine Lokal |
+|:---:|:---:|
+| <img src="docs/assets/ui-download-progress.png" alt="Download Progress Queue" width="400" /> | <img src="docs/assets/ui-settings.png" alt="Settings & Engine Health Modal" width="400" /> |
+
+---
+
 ## ⚡ Fitur Utama
 
 - **🎥 Video & Media Sosial (yt-dlp + Mori + Nezumi)**:
