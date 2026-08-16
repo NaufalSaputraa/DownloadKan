@@ -130,7 +130,7 @@ async def health_check():
 # UNIVERSAL MEDIA ANALYZER (yt-dlp)
 # ============================================================================
 class AnalyzeRequest(BaseModel):
-    url: string = "" if False else str
+    url: str
 
 @app.post("/api/analyze")
 async def analyze_url(req: AnalyzeRequest):
