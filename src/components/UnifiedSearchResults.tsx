@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { LocalVideoItem, LocalMusicItem } from '../lib/api-local'
 import { startLocalDownload } from '../lib/api-local'
 import { useToast } from '../hooks/useToast'
+import { SortSelect, type SortOption } from './ui/SortSelect'
 
 export interface UnifiedResultsProps {
   query: string
@@ -14,9 +15,30 @@ export interface UnifiedResultsProps {
 
 type FilterType = 'all' | 'video' | 'music'
 type AudioFormat = 'flac' | 'mp3' | 'm4a' | 'wav' | 'opus'
+type MusicSortType = 'default' | 'name-az' | 'name-za' | 'artist-az' | 'duration-long' | 'duration-short'
+type VideoSortType = 'default' | 'name-az' | 'name-za' | 'views-most' | 'views-least' | 'duration-long' | 'duration-short'
 
 const MUSIC_PER_PAGE = 16
 const VIDEO_PER_PAGE = 8
+
+const MUSIC_SORT_OPTIONS: SortOption<MusicSortType>[] = [
+  { id: 'default', label: 'Paling Relevan', icon: '🔍' },
+  { id: 'name-az', label: 'Judul A → Z', icon: '🔤' },
+  { id: 'name-za', label: 'Judul Z → A', icon: '🔤' },
+  { id: 'artist-az', label: 'Artis A → Z', icon: '🎤' },
+  { id: 'duration-long', label: 'Durasi Terlama', icon: '⏱️' },
+  { id: 'duration-short', label: 'Durasi Terpendek', icon: '⏱️' },
+]
+
+const VIDEO_SORT_OPTIONS: SortOption<VideoSortType>[] = [
+  { id: 'default', label: 'Paling Relevan', icon: '🔍' },
+  { id: 'name-az', label: 'Judul A → Z', icon: '🔤' },
+  { id: 'name-za', label: 'Judul Z → A', icon: '🔤' },
+  { id: 'views-most', label: 'Views Terbanyak', icon: '👀' },
+  { id: 'views-least', label: 'Views Tersedikit', icon: '👀' },
+  { id: 'duration-long', label: 'Durasi Terlama', icon: '⏱️' },
+  { id: 'duration-short', label: 'Durasi Terpendek', icon: '⏱️' },
+]
 
 const AUDIO_FORMAT_OPTIONS: Array<{ id: AudioFormat; label: string; desc: string; badge: string }> = [
   { id: 'flac', label: 'FLAC Lossless', desc: 'Master 24-bit Studio Quality', badge: 'Terbaik' },
@@ -26,10 +48,39 @@ const AUDIO_FORMAT_OPTIONS: Array<{ id: AudioFormat; label: string; desc: string
   { id: 'opus', label: 'OPUS 160k', desc: 'Modern High Efficiency Codec', badge: 'Stream' },
 ]
 
+function sortMusics(arr: LocalMusicItem[], sort: MusicSortType): LocalMusicItem[] {
+  if (sort === 'default') return arr
+  const sorted = [...arr]
+  switch (sort) {
+    case 'name-az': return sorted.sort((a, b) => a.title.localeCompare(b.title))
+    case 'name-za': return sorted.sort((a, b) => b.title.localeCompare(a.title))
+    case 'artist-az': return sorted.sort((a, b) => a.artist.localeCompare(b.artist))
+    case 'duration-long': return sorted.sort((a, b) => (b.duration || 0) - (a.duration || 0))
+    case 'duration-short': return sorted.sort((a, b) => (a.duration || 0) - (b.duration || 0))
+    default: return sorted
+  }
+}
+
+function sortVideos(arr: LocalVideoItem[], sort: VideoSortType): LocalVideoItem[] {
+  if (sort === 'default') return arr
+  const sorted = [...arr]
+  switch (sort) {
+    case 'name-az': return sorted.sort((a, b) => a.title.localeCompare(b.title))
+    case 'name-za': return sorted.sort((a, b) => b.title.localeCompare(a.title))
+    case 'views-most': return sorted.sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+    case 'views-least': return sorted.sort((a, b) => (a.view_count || 0) - (b.view_count || 0))
+    case 'duration-long': return sorted.sort((a, b) => (b.duration || 0) - (a.duration || 0))
+    case 'duration-short': return sorted.sort((a, b) => (a.duration || 0) - (b.duration || 0))
+    default: return sorted
+  }
+}
+
 export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPlayTrack }: UnifiedResultsProps) {
   const [filter, setFilter] = useState<FilterType>('all')
   const [musicPage, setMusicPage] = useState(1)
   const [videoPage, setVideoPage] = useState(1)
+  const [musicSort, setMusicSort] = useState<MusicSortType>('default')
+  const [videoSort, setVideoSort] = useState<VideoSortType>('default')
   const [selectedFormats, setSelectedFormats] = useState<Record<string, AudioFormat>>({})
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null)
@@ -59,22 +110,22 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
   const handleDownloadVideo = async (video: LocalVideoItem, format: 'video' | 'audio' = 'video') => {
     try {
       setDownloadingId(video.id)
-      if (format === 'video') {
-        await startLocalDownload({
-          url: video.url,
-          format: 'best',
-          category: 'Videos',
-          title: video.title,
-        })
-        push(`Memulai unduhan video: ${video.title}`, 'info')
-      } else {
+      if (format === 'audio') {
         await startLocalDownload({
           url: video.url,
           format: 'mp3',
           category: 'Music',
           title: video.title,
         })
-        push(`Memulai ekstraksi audio: ${video.title}`, 'info')
+        push(`Mengekstrak audio MP3: ${video.title}`, 'info')
+      } else {
+        await startLocalDownload({
+          url: video.url,
+          format: '1080p',
+          category: 'Videos',
+          title: video.title,
+        })
+        push(`Memulai unduhan Full HD: ${video.title}`, 'info')
       }
     } catch (e) {
       push(`Gagal memulai unduhan: ${(e as Error).message}`, 'error')
@@ -86,11 +137,14 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
   const showVideos = (filter === 'all' || filter === 'video') && videos.length > 0
   const showMusics = (filter === 'all' || filter === 'music') && musics.length > 0
 
-  const totalMusicPages = Math.ceil(musics.length / MUSIC_PER_PAGE) || 1
-  const totalVideoPages = Math.ceil(videos.length / VIDEO_PER_PAGE) || 1
+  const sortedMusics = useMemo(() => sortMusics(musics, musicSort), [musics, musicSort])
+  const sortedVideos = useMemo(() => sortVideos(videos, videoSort), [videos, videoSort])
 
-  const paginatedMusics = musics.slice((musicPage - 1) * MUSIC_PER_PAGE, musicPage * MUSIC_PER_PAGE)
-  const paginatedVideos = videos.slice((videoPage - 1) * VIDEO_PER_PAGE, videoPage * VIDEO_PER_PAGE)
+  const totalMusicPages = Math.ceil(sortedMusics.length / MUSIC_PER_PAGE) || 1
+  const totalVideoPages = Math.ceil(sortedVideos.length / VIDEO_PER_PAGE) || 1
+
+  const paginatedMusics = sortedMusics.slice((musicPage - 1) * MUSIC_PER_PAGE, musicPage * MUSIC_PER_PAGE)
+  const paginatedVideos = sortedVideos.slice((videoPage - 1) * VIDEO_PER_PAGE, videoPage * VIDEO_PER_PAGE)
 
   return (
     <div className="w-full space-y-5">
@@ -135,16 +189,27 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
       {/* SECTION: MUSIK FULL SONG */}
       {showMusics && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold uppercase tracking-wider text-accent">🎵 Musik Lossless & Full Song</span>
               <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 font-mono text-[10px] text-emerald-400">
                 100% Full Track + Cover Art HD
               </span>
             </div>
-            <span className="font-mono text-[11px] text-ink-muted">
-              Hal {musicPage} dari {totalMusicPages} ({musics.length} lagu)
-            </span>
+            <div className="flex items-center gap-3">
+              <SortSelect
+                options={MUSIC_SORT_OPTIONS}
+                value={musicSort}
+                onChange={(v) => {
+                  setMusicSort(v)
+                  setMusicPage(1)
+                }}
+                label="Urutkan:"
+              />
+              <span className="font-mono text-[11px] text-ink-muted hidden sm:inline">
+                Hal {musicPage} dari {totalMusicPages} ({musics.length} lagu)
+              </span>
+            </div>
           </div>
 
           {/* Music Cards Grid */}
@@ -331,14 +396,25 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
       {/* SECTION: YOUTUBE VIDEO */}
       {showVideos && (
         <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold uppercase tracking-wider text-rose-400">🎬 Video YouTube</span>
               <span className="font-mono text-xs text-ink-muted">Resolusi hingga 1080p / 4K</span>
             </div>
-            <span className="font-mono text-[11px] text-ink-muted">
-              Hal {videoPage} dari {totalVideoPages} ({videos.length} video)
-            </span>
+            <div className="flex items-center gap-3">
+              <SortSelect
+                options={VIDEO_SORT_OPTIONS}
+                value={videoSort}
+                onChange={(v) => {
+                  setVideoSort(v)
+                  setVideoPage(1)
+                }}
+                label="Urutkan:"
+              />
+              <span className="font-mono text-[11px] text-ink-muted hidden sm:inline">
+                Hal {videoPage} dari {totalVideoPages} ({videos.length} video)
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 items-start">

@@ -9,8 +9,59 @@ import { useToast } from '../hooks/useToast'
 import type { TorrentHit } from '../engines/torrent/sources'
 import { formatEta, formatSpeed } from '../utils/format'
 import { Chip } from './ui/Chip'
+import { SortSelect, type SortOption } from './ui/SortSelect'
 
 const TORRENT_PER_PAGE = 10
+
+type TorrentSortType = 'seeders-desc' | 'size-desc' | 'size-asc' | 'name-az' | 'name-za'
+type SourceFilterType = 'all' | 'TPB' | 'Nyaa'
+
+const TORRENT_SORT_OPTIONS: SortOption<TorrentSortType>[] = [
+  { id: 'seeders-desc', label: 'Seeder Terbanyak (Tercepat)', icon: '⚡' },
+  { id: 'size-desc', label: 'Ukuran Terbesar (Kualitas HD/4K)', icon: '📦' },
+  { id: 'size-asc', label: 'Ukuran Terkecil (Hemat Kuota)', icon: '🚀' },
+  { id: 'name-az', label: 'Judul A → Z', icon: '🔤' },
+  { id: 'name-za', label: 'Judul Z → A', icon: '🔤' },
+]
+
+function parseSizeToBytes(sz: string): number {
+  if (!sz) return 0
+  const m = sz.match(/([\d.]+)\s*([KMGT]i?B)/i)
+  if (!m) return 0
+  const val = parseFloat(m[1])
+  const unit = m[2].toUpperCase()
+  if (unit.startsWith('T')) return val * 1024 * 1024 * 1024 * 1024
+  if (unit.startsWith('G')) return val * 1024 * 1024 * 1024
+  if (unit.startsWith('M')) return val * 1024 * 1024
+  if (unit.startsWith('K')) return val * 1024
+  return val
+}
+
+function sortAndFilterTorrents(
+  hits: TorrentHit[],
+  sourceFilter: SourceFilterType,
+  sort: TorrentSortType,
+): TorrentHit[] {
+  let filtered = hits
+  if (sourceFilter !== 'all') {
+    filtered = filtered.filter((h) => h.source.toLowerCase().includes(sourceFilter.toLowerCase()))
+  }
+  const res = [...filtered]
+  switch (sort) {
+    case 'seeders-desc':
+      return res.sort((a, b) => b.seeders - a.seeders)
+    case 'size-desc':
+      return res.sort((a, b) => parseSizeToBytes(b.size) - parseSizeToBytes(a.size))
+    case 'size-asc':
+      return res.sort((a, b) => parseSizeToBytes(a.size) - parseSizeToBytes(b.size))
+    case 'name-az':
+      return res.sort((a, b) => a.title.localeCompare(b.title))
+    case 'name-za':
+      return res.sort((a, b) => b.title.localeCompare(a.title))
+    default:
+      return res
+  }
+}
 
 export function TorrentPanel() {
   const { active, start, remove, clearFinished } = useTorrent()
@@ -23,6 +74,8 @@ export function TorrentPanel() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [subtitleTarget, setSubtitleTarget] = useState<{ title: string; magnet: string } | null>(null)
   const [torrentPage, setTorrentPage] = useState(1)
+  const [torrentSort, setTorrentSort] = useState<TorrentSortType>('seeders-desc')
+  const [sourceFilter, setSourceFilter] = useState<SourceFilterType>('all')
   const abortRef = useRef<AbortController | null>(null)
 
   const doSearch = useCallback(async () => {
@@ -130,17 +183,72 @@ export function TorrentPanel() {
       {/* Hasil pencarian */}
       {searchMsg && <p className="px-2 font-mono text-xs text-ink-faint">{searchMsg}</p>}
       {hits.length > 0 && (() => {
-        const totalPages = Math.ceil(hits.length / TORRENT_PER_PAGE)
+        const sortedAndFiltered = sortAndFilterTorrents(hits, sourceFilter, torrentSort)
+        const totalPages = Math.ceil(sortedAndFiltered.length / TORRENT_PER_PAGE) || 1
         const startIdx = (torrentPage - 1) * TORRENT_PER_PAGE
-        const pageHits = hits.slice(startIdx, startIdx + TORRENT_PER_PAGE)
+        const pageHits = sortedAndFiltered.slice(startIdx, startIdx + TORRENT_PER_PAGE)
 
         return (
           <section>
-            <div className="mb-2 flex items-center justify-between px-1">
-              <h3 className="text-sm font-medium text-ink">
-                Hasil Pencarian ({hits.length} Item) — Halaman {torrentPage}/{totalPages}
-              </h3>
-              <span className="font-mono text-xs text-ink-faint">Urutan Seeder Terbanyak</span>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-1">
+              <div>
+                <h3 className="text-sm font-medium text-ink">
+                  Hasil Pencarian ({sortedAndFiltered.length} Item) — Halaman {torrentPage}/{totalPages}
+                </h3>
+                <p className="font-mono text-[11px] text-ink-faint">
+                  Daftar sumber The Pirate Bay &amp; Nyaa dengan tautan magnet instan
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Source Filter Switcher */}
+                <div className="flex items-center gap-1 rounded-full bg-glass p-0.5 border border-glass-border">
+                  <button
+                    onClick={() => {
+                      setSourceFilter('all')
+                      setTorrentPage(1)
+                    }}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-mono transition-colors cursor-pointer ${
+                      sourceFilter === 'all' ? 'bg-glass-2 text-ink font-semibold' : 'text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    Semua
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSourceFilter('TPB')
+                      setTorrentPage(1)
+                    }}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-mono transition-colors cursor-pointer ${
+                      sourceFilter === 'TPB' ? 'bg-glass-2 text-ink font-semibold' : 'text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    TPB
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSourceFilter('Nyaa')
+                      setTorrentPage(1)
+                    }}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-mono transition-colors cursor-pointer ${
+                      sourceFilter === 'Nyaa' ? 'bg-glass-2 text-ink font-semibold' : 'text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    Nyaa
+                  </button>
+                </div>
+
+                {/* Sort Dropdown */}
+                <SortSelect
+                  options={TORRENT_SORT_OPTIONS}
+                  value={torrentSort}
+                  onChange={(v) => {
+                    setTorrentSort(v)
+                    setTorrentPage(1)
+                  }}
+                  label="Urutkan:"
+                />
+              </div>
             </div>
             <ul className="flex flex-col gap-2.5">
               <AnimatePresence initial={false}>
