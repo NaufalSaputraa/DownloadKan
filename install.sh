@@ -71,11 +71,11 @@ fi
 echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, yt-dlp, mutagen, rich)...${NC}"
 if [ "$IS_TERMUX" = true ]; then
     # Di Termux: JANGAN 'pip install -U pip' karena pip dikelola oleh paket python Termux
-    python3 -m pip install --no-cache-dir --break-system-packages fastapi "uvicorn[standard]" yt-dlp mutagen rich aiohttp websockets requests || \
-    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen rich aiohttp websockets requests || true
+    python3 -m pip install --no-cache-dir --break-system-packages fastapi "uvicorn[standard]" yt-dlp mutagen rich streamrip aiohttp websockets requests || \
+    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen rich streamrip aiohttp websockets requests || true
 else
     python3 -m pip install --upgrade pip || true
-    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen rich aiohttp websockets requests || true
+    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen rich streamrip aiohttp websockets requests || true
 fi
 
 # 5. MEMBUAT EXECUTABLE GLOBAL (downloadkan)
