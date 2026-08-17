@@ -549,42 +549,53 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
 
 
 # ============================================================================
-# TERMINAL TORRENT SEARCH & ARIA2C DOWNLOADER
+# TERMINAL TORRENT SEARCH & ARIA2C DOWNLOADER (Multi-Indexer + Live Trackers)
 # ============================================================================
+LIVE_TRACKERS = [
+    "udp://tracker.opentrackr.org:1337/announce",
+    "udp://open.tracker.cl:1337/announce",
+    "udp://open.demonii.com:1337/announce",
+    "udp://tracker.openbittorrent.com:80/announce",
+    "udp://tracker.coppersurfer.tk:6969/announce",
+    "udp://p4p.arenabg.com:1337/announce",
+    "udp://tracker.torrent.eu.org:451/announce",
+]
+
 def search_and_download_torrent(query: str, output_dir: Optional[str] = None):
-    """Cari torrent dari The Pirate Bay / Nyaa, tampilkan tabel dan unduh via aria2c."""
+    """Cari torrent dari The Pirate Bay / Nyaa / YTS / Torlink dengan failover cermin & auto-injeksi tracker."""
     import requests
 
     console.print(f"\n[cyan]🔍 Mencari torrent untuk:[/cyan] [bold white]{query}[/bold white]")
     hits = []
 
-    with console.status("[bold green]Menghubungi indexer torrent (TPB / Nyaa)...[/bold green]", spinner="earth"):
+    with console.status("[bold green]Menghubungi indexer torrent (TPB / Nyaa / YTS / Torlink)...[/bold green]", spinner="earth"):
         # 1. The Pirate Bay (apibay.org)
         try:
-            r = requests.get(f"https://apibay.org/q.php?q={urllib.parse.quote(query)}", timeout=6)
+            r = requests.get(f"https://apibay.org/q.php?q={urllib.parse.quote(query)}", timeout=5)
             if r.status_code == 200:
                 for item in r.json()[:15]:
                     if item.get("name") and item.get("name") != "No results returned":
                         info_hash = item.get("info_hash")
                         seeders = int(item.get("seeders", 0))
                         size_bytes = int(item.get("size", 0))
+                        tr_params = "".join(f"&tr={urllib.parse.quote(t)}" for t in LIVE_TRACKERS)
                         hits.append({
                             "title": item.get("name"),
                             "size": format_bytes(size_bytes),
                             "seeders": seeders,
                             "leechers": int(item.get("leechers", 0)),
-                            "magnet": f"magnet:?xt=urn:btih:{info_hash}&dn={urllib.parse.quote(item.get('name'))}",
+                            "magnet": f"magnet:?xt=urn:btih:{info_hash}&dn={urllib.parse.quote(item.get('name'))}{tr_params}",
                             "source": "ThePirateBay",
                         })
         except Exception as e:
             console.print(f"[dim yellow]Notice (TPB): {e}[/dim yellow]")
 
-        # 2. Nyaa.si
+        # 2. Nyaa.si (Anime / Asian / Manga)
         try:
             r = requests.get(
                 f"https://nyaa.si/?f=0&c=0_0&q={urllib.parse.quote(query)}",
                 headers={"User-Agent": "Mozilla/5.0"},
-                timeout=6,
+                timeout=5,
             )
             if r.status_code == 200:
                 rows = re.findall(r'<tr class="default">(.*?)</tr>', r.text, re.DOTALL)
@@ -595,16 +606,40 @@ def search_and_download_torrent(query: str, output_dir: Optional[str] = None):
                     seed_m = re.search(r'<td class="text-center"[^>]*>(\d+)</td>', row)
 
                     if title_m and magnet_m:
+                        mag = magnet_m.group(1)
+                        if not any(f"&tr=" in mag for _ in [1]):
+                            mag += "".join(f"&tr={urllib.parse.quote(t)}" for t in LIVE_TRACKERS)
                         hits.append({
                             "title": title_m.group(1),
                             "size": size_m.group(1) if size_m else "N/A",
                             "seeders": int(seed_m.group(1)) if seed_m else 0,
                             "leechers": 0,
-                            "magnet": magnet_m.group(1),
+                            "magnet": mag,
                             "source": "Nyaa",
                         })
         except Exception as e:
             console.print(f"[dim yellow]Notice (Nyaa): {e}[/dim yellow]")
+
+        # 3. YTS / YIFY API (Movies HD / 4K)
+        try:
+            r = requests.get(f"https://yts.mx/api/v2/list_movies.json?query_term={urllib.parse.quote(query)}&limit=8", timeout=5)
+            if r.status_code == 200:
+                movies = r.json().get("data", {}).get("movies", []) or []
+                for m in movies:
+                    for tor in m.get("torrents", []):
+                        info_hash = tor.get("hash")
+                        if info_hash:
+                            tr_params = "".join(f"&tr={urllib.parse.quote(t)}" for t in LIVE_TRACKERS)
+                            hits.append({
+                                "title": f"{m.get('title')} ({m.get('year')}) [{tor.get('quality')} {tor.get('type')}]",
+                                "size": tor.get("size", "N/A"),
+                                "seeders": int(tor.get("seeds", 0)),
+                                "leechers": int(tor.get("peers", 0)),
+                                "magnet": f"magnet:?xt=urn:btih:{info_hash}&dn={urllib.parse.quote(m.get('title'))}{tr_params}",
+                                "source": "YTS/YIFY",
+                            })
+        except Exception as e:
+            console.print(f"[dim yellow]Notice (YTS): {e}[/dim yellow]")
 
     if not hits:
         console.print("[bold red]❌ Tidak ada hasil torrent yang ditemukan untuk kata kunci tersebut.[/bold red]")
