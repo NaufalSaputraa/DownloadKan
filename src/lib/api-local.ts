@@ -241,7 +241,7 @@ export async function searchLocalUnified(query: string, signal?: AbortSignal): P
   // Fallback 100% Client-side: iTunes API (CORS OK)
   try {
     const itunesRes = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=20`,
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=60`,
       { signal },
     )
     if (itunesRes.ok) {

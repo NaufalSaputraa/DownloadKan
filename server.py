@@ -292,43 +292,95 @@ async def analyze_url(req: AnalyzeRequest):
         formats_list = []
         formats = info.get("formats", [])
 
+        # Filter and group video & audio formats
+        video_formats = {}
+        audio_formats = {}
+
         for f in formats:
             vcodec = f.get("vcodec", "none")
             acodec = f.get("acodec", "none")
             height = f.get("height")
-            url_link = f.get("url")
+            fps = f.get("fps")
+            filesize = f.get("filesize") or f.get("filesize_approx") or 0
 
-            if vcodec != "none" and url_link:
-                label = f"Video {height}p" if height else "Video HD"
-                if height and height >= 2160:
-                    label = f"Video 4K Ultra HD ({height}p)"
-                elif height and height >= 1080:
-                    label = f"Video Full HD ({height}p)"
-                formats_list.append({
-                    "format_id": f.get("format_id"),
-                    "type": label,
-                    "ext": f.get("ext", "mp4"),
-                    "filesize": f.get("filesize") or f.get("filesize_approx"),
-                    "url": url_link,
-                })
-            elif acodec != "none" and vcodec == "none" and url_link:
-                abr = f.get("abr", 128)
-                formats_list.append({
-                    "format_id": f.get("format_id"),
-                    "type": f"Audio MP3 ({int(abr)} kbps)" if abr else "Audio MP3",
-                    "ext": f.get("ext", "mp3"),
-                    "filesize": f.get("filesize") or f.get("filesize_approx"),
-                    "url": url_link,
-                })
+            if vcodec != "none" and height and height >= 144:
+                res_key = height
+                fps_str = f" {int(fps)}fps" if fps and fps > 30 else ""
+                if height >= 2160:
+                    label = f"Video 4K Ultra HD (2160p{fps_str})"
+                elif height >= 1440:
+                    label = f"Video 2K Quad HD (1440p{fps_str})"
+                elif height >= 1080:
+                    label = f"Video Full HD (1080p{fps_str})"
+                elif height >= 720:
+                    label = f"Video HD (720p{fps_str})"
+                elif height >= 480:
+                    label = f"Video SD (480p)"
+                elif height >= 360:
+                    label = f"Video SD (360p)"
+                else:
+                    label = f"Video ({height}p)"
+
+                if res_key not in video_formats or (filesize and filesize > video_formats[res_key].get("filesize", 0)):
+                    video_formats[res_key] = {
+                        "format_id": f.get("format_id"),
+                        "type": label,
+                        "ext": "mp4",
+                        "height": height,
+                        "filesize": filesize,
+                        "url": f.get("url"),
+                    }
+            elif acodec != "none" and vcodec == "none":
+                abr = int(f.get("abr", 0) or 0)
+                if abr > 0:
+                    audio_formats[abr] = {
+                        "format_id": f.get("format_id"),
+                        "type": f"Audio MP3 ({abr} kbps)",
+                        "ext": "mp3",
+                        "abr": abr,
+                        "filesize": filesize,
+                        "url": f.get("url"),
+                    }
+
+        # Sort video formats descending by resolution (4K -> 1440p -> 1080p -> 720p -> ...)
+        sorted_videos = sorted(video_formats.values(), key=lambda x: x["height"], reverse=True)
 
         downloads = []
-        if formats_list:
-            downloads = formats_list[:8]
-        else:
-            downloads = [
-                {"type": "Video Kualitas Terbaik (MP4)", "url": url, "ext": "mp4", "local": True},
-                {"type": "Audio Ekstraksi (MP3 320kbps)", "url": url, "ext": "mp3", "local": True},
-            ]
+        # 1. Add Lossless FLAC & MP3 320k at the top
+        downloads.append({
+            "format_id": "bestaudio/best",
+            "type": "Lossless FLAC Master (Studio)",
+            "ext": "flac",
+            "filesize": None,
+            "url": url,
+            "local": True,
+        })
+        downloads.append({
+            "format_id": "bestaudio/best",
+            "type": "Audio MP3 320k (HQ)",
+            "ext": "mp3",
+            "filesize": None,
+            "url": url,
+            "local": True,
+        })
+
+        # 2. Add Top Video Resolutions (4K, 2K, 1080p, 720p, 480p, 360p)
+        for v in sorted_videos[:6]:
+            downloads.append({
+                "format_id": v["format_id"],
+                "type": v["type"],
+                "ext": "mp4",
+                "filesize": v["filesize"],
+                "url": v["url"] or url,
+            })
+
+        if not sorted_videos:
+            downloads.append({
+                "type": "Video Kualitas Terbaik (MP4)",
+                "url": url,
+                "ext": "mp4",
+                "local": True,
+            })
 
         return {
             "title": title,
@@ -801,7 +853,7 @@ async def search_unified(q: str):
             "skip_download": True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            yt_res = ydl.extract_info(f"ytsearch10:{query}", download=False)
+            yt_res = ydl.extract_info(f"ytsearch25:{query}", download=False)
             if yt_res and "entries" in yt_res:
                 for entry in yt_res["entries"]:
                     if not entry:
@@ -832,8 +884,8 @@ async def search_unified(q: str):
     # 2. Lossless Music Search (iTunes / Apple Music / Deezer)
     try:
         r = requests.get(
-            f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&media=music&country=ID&limit=15",
-            timeout=5,
+            f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&media=music&country=ID&limit=60",
+            timeout=6,
         )
         if r.status_code == 200:
             for item in r.json().get("results", []):
