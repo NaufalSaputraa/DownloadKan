@@ -239,10 +239,55 @@ def run_doctor():
 
 
 # ============================================================================
+# SILENT BACKGROUND AUTO-UPDATER & SELF-HEALING
+# ============================================================================
+def trigger_silent_background_update():
+    """Jalankan pembaruan otomatis di latar belakang tanpa mengganggu atau memperlambat user."""
+    cfg = load_config()
+    last_check = cfg.get("last_auto_update", 0)
+    now = time.time()
+
+    # Cek pembaruan otomatis berkala (setiap 12 jam)
+    if now - last_check > 12 * 3600:
+        cfg["last_auto_update"] = now
+        save_config(cfg)
+
+        def _bg_worker():
+            try:
+                # 1. Update yt-dlp, streamrip, mutagen secara senyap
+                subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp", "streamrip", "mutagen", "rich", "--quiet"],
+                    capture_output=True,
+                    timeout=90,
+                )
+                # 2. Update kode git jika ada
+                if Path(".git").exists() and shutil.which("git"):
+                    subprocess.run(["git", "pull", "--quiet"], capture_output=True, timeout=20)
+            except Exception:
+                pass
+
+        threading.Thread(target=_bg_worker, daemon=True).start()
+
+
+def self_heal_update_engines():
+    """Perbarui engine on-the-fly jika terjadi error ekstraksi atau perubahan algoritma platform."""
+    console.print("[dim yellow]⚙️ Mendeteksi kemungkinan perubahan algoritma platform. Memperbarui engine otomatis...[/dim yellow]")
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp", "--quiet"],
+            capture_output=True,
+            timeout=45,
+        )
+    except Exception:
+        pass
+
+
+# ============================================================================
 # UNIVERSAL MEDIA ANALYZER & DOWNLOADER
 # ============================================================================
 def analyze_and_download_media(url: str, format_choice: Optional[str] = None, audio_only: bool = False, output_dir: Optional[str] = None):
     """Analisis URL media menggunakan yt-dlp dan lakukan unduhan interaktif atau direct."""
+    trigger_silent_background_update()
     try:
         import yt_dlp
     except ImportError:
@@ -270,8 +315,14 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
             with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:
-            console.print(f"[bold red]❌ Gagal menganalisis URL:[/bold red] {e}")
-            return
+            # Self-healing on failure: update engine and retry once
+            self_heal_update_engines()
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                    info = ydl.extract_info(url, download=False)
+            except Exception as e2:
+                console.print(f"[bold red]❌ Gagal menganalisis URL:[/bold red] {e2}")
+                return
 
     if not info:
         console.print("[bold red]❌ Metadata tidak ditemukan untuk URL tersebut.[/bold red]")
@@ -1105,6 +1156,7 @@ def interactive_menu():
 # COMMAND LINE ARGUMENT PARSER (CLI SUBCOMMANDS)
 # ============================================================================
 def main():
+    trigger_silent_background_update()
     parser = argparse.ArgumentParser(
         description="DownloadKan CLI — Powerful Standalone Media, Music & Torrent Downloader",
         formatter_class=argparse.RawTextHelpFormatter,
