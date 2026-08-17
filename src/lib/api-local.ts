@@ -226,45 +226,135 @@ export async function startBatchDownload(params: {
 }
 
 export async function searchLocalUnified(query: string, signal?: AbortSignal): Promise<UnifiedSearchResult> {
-  const res = await fetch(
-    `${getBackendBaseUrl()}/api/search/unified?q=${encodeURIComponent(query)}`,
-    { signal },
-  )
-  if (!res.ok) {
-    return { query, videos: [], musics: [], total: 0 }
+  try {
+    const res = await fetch(
+      `${getBackendBaseUrl()}/api/search/unified?q=${encodeURIComponent(query)}`,
+      { signal },
+    )
+    if (res.ok) {
+      return await res.json()
+    }
+  } catch {
+    /* Backend local tidak merespons, fallback ke client-side search */
   }
-  return res.json()
+
+  // Fallback 100% Client-side: iTunes API (CORS OK)
+  try {
+    const itunesRes = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=20`,
+      { signal },
+    )
+    if (itunesRes.ok) {
+      const data = await itunesRes.json()
+      const musics: LocalMusicItem[] = (data.results || []).map((item: any) => ({
+        id: String(item.trackId || item.collectionId),
+        title: item.trackName || item.collectionName || query,
+        artist: item.artistName || 'Unknown Artist',
+        album: item.collectionName || '',
+        artwork: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '600x600bb').replace('100x100', '600x600') : '',
+        preview: item.previewUrl || '',
+        source: 'Apple Music / iTunes',
+        duration: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 1000) : undefined,
+        duration_str: item.trackTimeMillis
+          ? `${Math.floor(item.trackTimeMillis / 60000)}:${Math.floor((item.trackTimeMillis % 60000) / 1000).toString().padStart(2, '0')}`
+          : '',
+        direct_url: item.trackViewUrl || '',
+      }))
+
+      return {
+        query,
+        videos: [],
+        musics,
+        total: musics.length,
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return { query, videos: [], musics: [], total: 0 }
 }
 
 export async function searchLocalMusic(query: string, signal?: AbortSignal): Promise<LocalMusicItem[]> {
-  const res = await fetch(
-    `${getBackendBaseUrl()}/api/search/music?q=${encodeURIComponent(query)}`,
-    { signal },
-  )
-  if (!res.ok) return []
-  const data = await res.json()
-  return data.results || []
+  const unified = await searchLocalUnified(query, signal)
+  return unified.musics
 }
 
 export async function searchLocalTorrent(query: string, signal?: AbortSignal): Promise<LocalTorrentItem[]> {
-  const res = await fetch(
-    `${getBackendBaseUrl()}/api/search/torrent?q=${encodeURIComponent(query)}`,
-    { signal },
-  )
-  if (!res.ok) return []
-  const data = await res.json()
-  return data.results || []
+  try {
+    const res = await fetch(
+      `${getBackendBaseUrl()}/api/search/torrent?q=${encodeURIComponent(query)}`,
+      { signal },
+    )
+    if (res.ok) {
+      const data = await res.json()
+      return data.results || []
+    }
+  } catch {
+    /* Fallback ke TPB apibay client-side */
+  }
+
+  try {
+    const apibayRes = await fetch(
+      `https://apibay.org/q.php?q=${encodeURIComponent(query)}`,
+      { signal },
+    )
+    if (apibayRes.ok) {
+      const hits = await apibayRes.json()
+      if (Array.isArray(hits) && hits.length > 0 && hits[0].name !== 'No results returned') {
+        return hits.slice(0, 30).map((h: any) => {
+          const sz = parseInt(h.size, 10) || 0
+          const sizeStr = sz > 1024 * 1024 * 1024 ? `${(sz / 1024 / 1024 / 1024).toFixed(2)} GB` : `${(sz / 1024 / 1024).toFixed(1)} MB`
+          return {
+            title: h.name,
+            size: sizeStr,
+            seeders: parseInt(h.seeders, 10) || 0,
+            leechers: parseInt(h.leechers, 10) || 0,
+            magnet: `magnet:?xt=urn:btih:${h.info_hash}&dn=${encodeURIComponent(h.name)}`,
+            source: 'The Pirate Bay',
+          }
+        })
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return []
 }
 
 export async function fetchLyrics(title: string, artist = '', album = '', signal?: AbortSignal): Promise<LyricsResponse> {
-  const res = await fetch(
-    `${getBackendBaseUrl()}/api/lyrics/get?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}`,
-    { signal },
-  )
-  if (!res.ok) {
-    return { title, artist, lyrics: null, source: 'error' }
+  try {
+    const res = await fetch(
+      `${getBackendBaseUrl()}/api/lyrics/get?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}`,
+      { signal },
+    )
+    if (res.ok) {
+      return await res.json()
+    }
+  } catch {
+    /* Fallback ke public LRCLIB API */
   }
-  return res.json()
+
+  try {
+    const lrclibRes = await fetch(
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}&album_name=${encodeURIComponent(album)}`,
+      { signal },
+    )
+    if (lrclibRes.ok) {
+      const d = await lrclibRes.json()
+      return {
+        title,
+        artist,
+        lyrics: d.syncedLyrics || d.plainLyrics || null,
+        source: 'LRCLIB (Client-Side)',
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return { title, artist, lyrics: null, source: 'none' }
 }
 
 export async function updateEngineCore(): Promise<EngineUpdateResponse> {
