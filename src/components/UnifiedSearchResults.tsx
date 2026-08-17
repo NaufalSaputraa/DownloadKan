@@ -19,7 +19,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const { push } = useToast()
 
-  const handleDownloadMusic = async (track: LocalMusicItem, format: 'mp3' | 'flac' = 'mp3') => {
+  const handleDownloadMusic = async (track: LocalMusicItem, format: 'mp3' | 'flac' = 'flac') => {
     try {
       setDownloadingId(track.id)
       await startLocalDownload({
@@ -176,23 +176,23 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
                   {/* Actions */}
                   <div className="mt-3 flex items-center gap-2 pt-2 border-t border-glass-border">
                     <button
-                      onClick={() => handleDownloadMusic(track, 'mp3')}
+                      onClick={() => handleDownloadMusic(track, 'flac')}
                       disabled={isDownloading}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-ink px-3 py-1.5 text-xs font-medium text-paper hover:bg-[oklch(86%_0.008_260)] transition-colors disabled:opacity-50"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-medium text-paper hover:opacity-95 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
                     >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
                       </svg>
-                      {isDownloading ? 'Mengunduh...' : 'Unduh Full MP3 320k'}
+                      {isDownloading ? 'Mengunduh...' : 'Unduh Musik'}
                     </button>
 
                     <button
-                      onClick={() => handleDownloadMusic(track, 'flac')}
+                      onClick={() => handleDownloadMusic(track, 'mp3')}
                       disabled={isDownloading}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-glass-border bg-glass px-2.5 py-1.5 text-xs font-mono text-emerald-400 hover:bg-glass-2 transition-colors"
-                      title="Unduh FLAC Lossless 24-bit"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-glass-border bg-glass px-2.5 py-1.5 text-[11px] font-mono text-ink-muted hover:text-ink hover:bg-glass-2 transition-colors cursor-pointer"
+                      title="Unduh MP3 320k (Kompatibilitas Standar)"
                     >
-                      FLAC
+                      MP3 320k
                     </button>
                   </div>
                 </motion.div>
