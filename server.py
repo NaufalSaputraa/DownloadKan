@@ -594,28 +594,65 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
 
     # 1. TORRENT via aria2c
     if url.startswith("magnet:") or url.endswith(".torrent"):
-        if shutil.which("aria2c"):
-            cmd = ["aria2c", "--dir", str(target_dir), "--seed-time=0", url]
+        aria2c_path = shutil.which("aria2c")
+        if not aria2c_path:
+            active_jobs[job_id]["status"] = "failed"
+            active_jobs[job_id]["error"] = "aria2c tidak ditemukan. Install dengan: winget install aria2.aria2 lalu restart server."
+            await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+            return
+
+        # Inject high-speed public trackers
+        trackers = [
+            "udp://open.stealth.si:80/announce",
+            "udp://tracker.opentrackr.org:1337/announce",
+            "udp://tracker.torrent.eu.org:451/announce",
+            "udp://explodie.org:6969/announce",
+            "udp://tracker.cyberia.is:6969/announce",
+            "udp://p4p.arenabg.com:1337/announce",
+            "udp://tracker.birkenwald.de:6969/announce",
+        ]
+        tracker_str = ",".join(trackers)
+
+        cmd = [
+            aria2c_path,
+            "--dir", str(target_dir),
+            "--seed-time=0",
+            "--bt-tracker=" + tracker_str,
+            "--max-connection-per-server=16",
+            "--split=16",
+            "--min-split-size=1M",
+            "--bt-max-peers=200",
+            "--bt-request-peer-speed-limit=0",
+            "--file-allocation=none",
+            "--summary-interval=3",
+            url,
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            stdout_data, _ = await proc.communicate()
+            # Auto-fetch Subtitle Indonesia & English untuk film torrent
             try:
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-                )
-                await proc.communicate()
-                # Auto-fetch Subtitle Indonesia & English untuk film torrent
-                try:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(None, auto_save_movie_subtitles, req.title or url, target_dir)
-                except Exception:
-                    pass
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, auto_save_movie_subtitles, req.title or url, target_dir)
+            except Exception:
+                pass
+
+            if proc.returncode == 0:
                 active_jobs[job_id]["status"] = "done"
                 active_jobs[job_id]["progress"] = 100
-                await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
-                return
-            except Exception as e:
+            else:
                 active_jobs[job_id]["status"] = "failed"
-                active_jobs[job_id]["error"] = str(e)
-                await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
-                return
+                error_text = stdout_data.decode("utf-8", errors="replace")[-500:] if stdout_data else "aria2c exit non-zero"
+                active_jobs[job_id]["error"] = error_text
+            await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+            return
+        except Exception as e:
+            active_jobs[job_id]["status"] = "failed"
+            active_jobs[job_id]["error"] = str(e)
+            await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+            return
 
     # 2. AUDIO & MUSIC (SpotiFLAC Pattern + Mutagen Lyrics Embedding)
     if req.category == "Music" or req.format in ["mp3", "flac", "audio"]:
@@ -1157,7 +1194,7 @@ async def search_torrent(q: str):
             timeout=5,
         )
         if r.status_code == 200:
-            for item in r.json()[:15]:
+            for item in r.json()[:40]:
                 if item.get("name") and item.get("name") != "No results returned":
                     info_hash = item.get("info_hash")
                     seeders = int(item.get("seeders", 0))
@@ -1183,7 +1220,7 @@ async def search_torrent(q: str):
         )
         if r.status_code == 200:
             rows = re.findall(r'<tr class="default">(.*?)</tr>', r.text, re.DOTALL)
-            for row in rows[:10]:
+            for row in rows[:25]:
                 title_m = re.search(r'<a href="/view/\d+"[^>]*title="([^"]+)"', row)
                 magnet_m = re.search(r'href="(magnet:\?[^"]+)"', row)
                 size_m = re.search(r'<td class="text-center">([0-9.]+\s*[KMGT]i?B)</td>', row)

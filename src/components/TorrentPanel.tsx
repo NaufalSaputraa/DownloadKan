@@ -10,6 +10,8 @@ import type { TorrentHit } from '../engines/torrent/sources'
 import { formatEta, formatSpeed } from '../utils/format'
 import { Chip } from './ui/Chip'
 
+const TORRENT_PER_PAGE = 10
+
 export function TorrentPanel() {
   const { active, start, remove, clearFinished } = useTorrent()
   const { isLocal, download: startLocalDownload } = useLocalBackend()
@@ -20,6 +22,7 @@ export function TorrentPanel() {
   const [searchMsg, setSearchMsg] = useState<string | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [subtitleTarget, setSubtitleTarget] = useState<{ title: string; magnet: string } | null>(null)
+  const [torrentPage, setTorrentPage] = useState(1)
   const abortRef = useRef<AbortController | null>(null)
 
   const doSearch = useCallback(async () => {
@@ -31,6 +34,7 @@ export function TorrentPanel() {
     setSearching(true)
     setSearchMsg(null)
     setHits([])
+    setTorrentPage(1)
 
     try {
       // Coba lewat backend lokal dulu jika aktif
@@ -125,84 +129,128 @@ export function TorrentPanel() {
 
       {/* Hasil pencarian */}
       {searchMsg && <p className="px-2 font-mono text-xs text-ink-faint">{searchMsg}</p>}
-      {hits.length > 0 && (
-        <section>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <h3 className="text-sm font-medium text-ink">Hasil Pencarian ({hits.length} Item)</h3>
-            <span className="font-mono text-xs text-ink-faint">Urutan Seeder Terbanyak</span>
-          </div>
-          <ul className="flex flex-col gap-2.5">
-            <AnimatePresence initial={false}>
-              {hits.map((h, i) => (
-                <motion.li
-                  key={`${h.source}-${i}`}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
-                  className="glass flex flex-col justify-between gap-3 rounded-2xl p-4 sm:flex-row sm:items-center"
+      {hits.length > 0 && (() => {
+        const totalPages = Math.ceil(hits.length / TORRENT_PER_PAGE)
+        const startIdx = (torrentPage - 1) * TORRENT_PER_PAGE
+        const pageHits = hits.slice(startIdx, startIdx + TORRENT_PER_PAGE)
+
+        return (
+          <section>
+            <div className="mb-2 flex items-center justify-between px-1">
+              <h3 className="text-sm font-medium text-ink">
+                Hasil Pencarian ({hits.length} Item) — Halaman {torrentPage}/{totalPages}
+              </h3>
+              <span className="font-mono text-xs text-ink-faint">Urutan Seeder Terbanyak</span>
+            </div>
+            <ul className="flex flex-col gap-2.5">
+              <AnimatePresence initial={false}>
+                {pageHits.map((h, i) => {
+                  const globalIdx = startIdx + i
+                  return (
+                    <motion.li
+                      key={`${h.source}-${globalIdx}`}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
+                      className="glass flex flex-col justify-between gap-3 rounded-2xl p-4 sm:flex-row sm:items-center"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Chip tone="accent">{h.source}</Chip>
+                          {h.quality && <Chip>{h.quality}</Chip>}
+                        </div>
+                        <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-ink">{h.title}</p>
+                        <p className="mt-1 font-mono text-xs text-ink-faint">
+                          Ukuran: <span className="text-ink">{h.size}</span> · <span className="text-emerald-400 font-semibold">{h.seeders}</span> seeder · {h.leechers} leecher
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Buka di App Torrent HP/PC via magnet: handler */}
+                        <a
+                          href={h.magnet}
+                          className="inline-flex items-center gap-1 rounded-full border border-glass-border bg-glass px-3.5 py-1.5 text-xs text-ink transition-colors hover:border-accent hover:text-accent"
+                          title="Buka langsung di aplikasi torrent bawaan HP/PC (qBittorrent, Flud, 1DM)"
+                        >
+                          Buka di App
+                        </a>
+
+                        {/* Salin Magnet */}
+                        <button
+                          onClick={() => handleCopyMagnet(h.magnet, globalIdx)}
+                          className="rounded-full border border-glass-border px-3 py-1.5 text-xs text-ink-muted transition-colors hover:text-ink cursor-pointer"
+                          title="Salin tautan magnet ke clipboard"
+                        >
+                          {copiedIndex === globalIdx ? 'Tersalin ✓' : 'Salin Magnet'}
+                        </button>
+
+                        {/* Pilih Subtitle Multibahasa */}
+                        {isLocal && (
+                          <button
+                            onClick={() => setSubtitleTarget({ title: h.title, magnet: h.magnet })}
+                            className="rounded-full border border-glass-border bg-glass/60 px-3.5 py-1.5 text-xs text-ink-muted hover:text-ink hover:border-accent transition-colors cursor-pointer inline-flex items-center gap-1"
+                            title="Buka panel pilihan subtitle multibahasa & unduh film"
+                          >
+                            💬 Pilih Subtitle
+                          </button>
+                        )}
+
+                        {/* Unduh via WebTorrent browser / local */}
+                        <button
+                          onClick={() => {
+                            if (isLocal) {
+                              void startLocalDownload(h.magnet, 'torrent', 'Torrents')
+                              push(`Memulai unduhan torrent & auto-subtitle: ${h.title}`, 'info')
+                            }
+                            start(h.magnet)
+                          }}
+                          className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)] cursor-pointer"
+                        >
+                          {isLocal ? 'Unduh (aria2c)' : 'Unduh di Web'}
+                        </button>
+                      </div>
+                    </motion.li>
+                  )
+                })}
+              </AnimatePresence>
+            </ul>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setTorrentPage((p) => Math.max(1, p - 1))}
+                  disabled={torrentPage <= 1}
+                  className="rounded-full border border-glass-border px-4 py-1.5 font-mono text-xs text-ink transition-colors hover:bg-glass disabled:opacity-30 cursor-pointer"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Chip tone="accent">{h.source}</Chip>
-                      {h.quality && <Chip>{h.quality}</Chip>}
-                    </div>
-                    <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-ink">{h.title}</p>
-                    <p className="mt-1 font-mono text-xs text-ink-faint">
-                      Ukuran: <span className="text-ink">{h.size}</span> · <span className="text-emerald-400 font-semibold">{h.seeders}</span> seeder · {h.leechers} leecher
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Buka di App Torrent HP/PC via magnet: handler */}
-                    <a
-                      href={h.magnet}
-                      className="inline-flex items-center gap-1 rounded-full border border-glass-border bg-glass px-3.5 py-1.5 text-xs text-ink transition-colors hover:border-accent hover:text-accent"
-                      title="Buka langsung di aplikasi torrent bawaan HP/PC (qBittorrent, Flud, 1DM)"
-                    >
-                      Buka di App
-                    </a>
-
-                    {/* Salin Magnet */}
-                    <button
-                      onClick={() => handleCopyMagnet(h.magnet, i)}
-                      className="rounded-full border border-glass-border px-3 py-1.5 text-xs text-ink-muted transition-colors hover:text-ink cursor-pointer"
-                      title="Salin tautan magnet ke clipboard"
-                    >
-                      {copiedIndex === i ? 'Tersalin ✓' : 'Salin Magnet'}
-                    </button>
-
-                    {/* Pilih Subtitle Multibahasa */}
-                    {isLocal && (
-                      <button
-                        onClick={() => setSubtitleTarget({ title: h.title, magnet: h.magnet })}
-                        className="rounded-full border border-glass-border bg-glass/60 px-3.5 py-1.5 text-xs text-ink-muted hover:text-ink hover:border-accent transition-colors cursor-pointer inline-flex items-center gap-1"
-                        title="Buka panel pilihan subtitle multibahasa & unduh film"
-                      >
-                        💬 Pilih Subtitle
-                      </button>
-                    )}
-
-                    {/* Unduh via WebTorrent browser / local */}
-                    <button
-                      onClick={() => {
-                        if (isLocal) {
-                          void startLocalDownload(h.magnet, 'torrent', 'Torrents')
-                          push(`Memulai unduhan torrent & auto-subtitle: ${h.title}`, 'info')
-                        }
-                        start(h.magnet)
-                      }}
-                      className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)] cursor-pointer"
-                    >
-                      {isLocal ? 'Unduh (aria2c)' : 'Unduh di Web'}
-                    </button>
-                  </div>
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ul>
-        </section>
-      )}
+                  ← Sebelumnya
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    onClick={() => setTorrentPage(pg)}
+                    className={`h-8 w-8 rounded-full font-mono text-xs transition-colors cursor-pointer ${
+                      pg === torrentPage
+                        ? 'bg-accent text-paper font-semibold'
+                        : 'border border-glass-border text-ink-muted hover:text-ink hover:bg-glass'
+                    }`}
+                  >
+                    {pg}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setTorrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={torrentPage >= totalPages}
+                  className="rounded-full border border-glass-border px-4 py-1.5 font-mono text-xs text-ink transition-colors hover:bg-glass disabled:opacity-30 cursor-pointer"
+                >
+                  Selanjutnya →
+                </button>
+              </div>
+            )}
+          </section>
+        )
+      })()}
 
       {/* Modal Pilihan Subtitle Multibahasa */}
       <TorrentSubtitleModal
