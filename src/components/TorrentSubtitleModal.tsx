@@ -6,7 +6,9 @@ import { useToast } from '../hooks/useToast'
 interface TorrentSubtitleModalProps {
   open: boolean
   movieTitle: string
+  magnet?: string
   onClose: () => void
+  onStartTorrent?: (magnet: string, title: string) => void
 }
 
 const LANGUAGE_FILTERS = [
@@ -21,7 +23,13 @@ const LANGUAGE_FILTERS = [
   { id: 'de', label: 'Jerman', flag: '🇩🇪' },
 ]
 
-export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubtitleModalProps) {
+export function TorrentSubtitleModal({
+  open,
+  movieTitle,
+  magnet,
+  onClose,
+  onStartTorrent,
+}: TorrentSubtitleModalProps) {
   const [loading, setLoading] = useState(false)
   const [subtitles, setSubtitles] = useState<MovieSubtitleItem[]>([])
   const [cleanTitle, setCleanTitle] = useState('')
@@ -65,7 +73,7 @@ export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubti
     }
   }, [open, movieTitle, push])
 
-  const handleDownload = async (sub: MovieSubtitleItem) => {
+  const handleDownloadSubtitleOnly = async (sub: MovieSubtitleItem) => {
     if (!sub.sub_page) return
     try {
       setDownloadingUrl(sub.sub_page)
@@ -80,6 +88,15 @@ export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubti
       push(`Gagal mengunduh: ${(e as Error).message}`, 'error')
     } finally {
       setDownloadingUrl(null)
+    }
+  }
+
+  const handleDownloadMovieAndSubtitle = async (sub: MovieSubtitleItem) => {
+    await handleDownloadSubtitleOnly(sub)
+    if (magnet && onStartTorrent) {
+      onStartTorrent(magnet, movieTitle)
+      push(`Memulai unduhan film (resolusi terbaik) + Subtitle ${sub.language}!`, 'info')
+      onClose()
     }
   }
 
@@ -121,7 +138,7 @@ export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubti
             <div className="p-5 sm:p-6 border-b border-glass-border flex items-start justify-between gap-4 bg-glass-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-semibold text-accent">💬 Pilihan Subtitle Film</span>
+                  <span className="text-lg font-semibold text-accent">💬 Pilihan Subtitle & Unduh Film</span>
                   {year && (
                     <span className="px-2 py-0.5 rounded-md bg-accent/15 border border-accent/30 font-mono text-[10px] text-accent">
                       {year}
@@ -132,7 +149,7 @@ export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubti
                   {cleanTitle || movieTitle}
                 </h3>
                 <p className="font-mono text-xs text-ink-muted mt-0.5">
-                  Tersedia {subtitles.length} subtitle dari berbagai bahasa terverifikasi
+                  Pilih bahasa subtitle yang diinginkan untuk diunduh bersama film
                 </p>
               </div>
 
@@ -203,7 +220,7 @@ export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubti
                       layout
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="glass flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl border border-glass-border hover:border-accent/40 transition-all"
+                      className="glass flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-glass-border hover:border-accent/40 transition-all"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -221,20 +238,39 @@ export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubti
                         </p>
                       </div>
 
-                      <button
-                        onClick={() => handleDownload(sub)}
-                        disabled={isDownloading || isDownloaded}
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-mono transition-all flex-shrink-0 cursor-pointer ${
-                          isDownloaded
-                            ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
-                            : 'bg-accent text-paper hover:opacity-95 shadow-sm disabled:opacity-50'
-                        }`}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                        </svg>
-                        {isDownloading ? 'Mengunduh...' : isDownloaded ? 'Tersimpan ✓' : 'Unduh .SRT'}
-                      </button>
+                      <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
+                        {/* Download Subtitle Only */}
+                        <button
+                          onClick={() => handleDownloadSubtitleOnly(sub)}
+                          disabled={isDownloading || isDownloaded}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-mono transition-all cursor-pointer ${
+                            isDownloaded
+                              ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                              : 'bg-glass border border-glass-border text-ink-muted hover:text-ink hover:bg-glass-2 disabled:opacity-50'
+                          }`}
+                          title="Unduh file .SRT saja ke folder film"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                          </svg>
+                          {isDownloaded ? 'Tersimpan ✓' : 'Hanya .SRT'}
+                        </button>
+
+                        {/* Download Movie + Subtitle */}
+                        {magnet && (
+                          <button
+                            onClick={() => handleDownloadMovieAndSubtitle(sub)}
+                            disabled={isDownloading}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent text-paper text-xs font-mono font-medium hover:opacity-95 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                            title="Unduh film dalam resolusi tertinggi + simpan subtitle ini otomatis"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" />
+                            </svg>
+                            Unduh Film + Sub
+                          </button>
+                        )}
+                      </div>
                     </motion.div>
                   )
                 })
@@ -249,13 +285,13 @@ export function TorrentSubtitleModal({ open, movieTitle, onClose }: TorrentSubti
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-glass-border bg-glass-2 flex items-center justify-between text-[11px] font-mono text-ink-faint">
-              <span>💡 File .SRT otomatis tersimpan berdampingan di folder film.</span>
+            <div className="p-4 border-t border-glass-border bg-glass-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] font-mono text-ink-faint">
+              <span>💡 DownloadKan otomatis menyinkronkan file .SRT ke folder unduhan film.</span>
               <button
                 onClick={onClose}
                 className="px-4 py-1.5 rounded-xl bg-glass border border-glass-border text-ink hover:bg-glass-2 transition-colors cursor-pointer"
               >
-                Selesai
+                Tutup
               </button>
             </div>
           </motion.div>

@@ -19,7 +19,7 @@ export function TorrentPanel() {
   const [hits, setHits] = useState<TorrentHit[]>([])
   const [searchMsg, setSearchMsg] = useState<string | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
-  const [subtitleMovie, setSubtitleMovie] = useState<string | null>(null)
+  const [subtitleTarget, setSubtitleTarget] = useState<{ title: string; magnet: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const doSearch = useCallback(async () => {
@@ -175,9 +175,9 @@ export function TorrentPanel() {
                     {/* Pilih Subtitle Multibahasa */}
                     {isLocal && (
                       <button
-                        onClick={() => setSubtitleMovie(h.title)}
+                        onClick={() => setSubtitleTarget({ title: h.title, magnet: h.magnet })}
                         className="rounded-full border border-glass-border bg-glass/60 px-3.5 py-1.5 text-xs text-ink-muted hover:text-ink hover:border-accent transition-colors cursor-pointer inline-flex items-center gap-1"
-                        title="Buka panel pilihan subtitle multibahasa untuk film ini"
+                        title="Buka panel pilihan subtitle multibahasa & unduh film"
                       >
                         💬 Pilih Subtitle
                       </button>
@@ -206,9 +206,17 @@ export function TorrentPanel() {
 
       {/* Modal Pilihan Subtitle Multibahasa */}
       <TorrentSubtitleModal
-        open={Boolean(subtitleMovie)}
-        movieTitle={subtitleMovie || ''}
-        onClose={() => setSubtitleMovie(null)}
+        open={Boolean(subtitleTarget)}
+        movieTitle={subtitleTarget?.title || ''}
+        magnet={subtitleTarget?.magnet}
+        onStartTorrent={(mag) => {
+          if (isLocal) {
+            void startLocalDownload(mag, 'torrent', 'Torrents')
+          } else {
+            start(mag)
+          }
+        }}
+        onClose={() => setSubtitleTarget(null)}
       />
 
       {/* Progress unduhan aktif */}
