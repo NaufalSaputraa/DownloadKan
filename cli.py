@@ -298,6 +298,32 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
 
     console.print(Panel(meta_text, title="[bold green]Informasi Media[/bold green]", border_style="green"))
 
+    # Deteksi Otomatis Jika Video Merupakan Musik / Lagu
+    categories = info.get("categories") or []
+    raw_track = info.get("track")
+    raw_artist = info.get("artist")
+    channel_name = uploader.lower()
+
+    is_music = bool(
+        "music" in [c.lower() for c in categories]
+        or raw_track
+        or raw_artist
+        or "- topic" in channel_name
+        or "vevo" in channel_name
+        or re.search(r"\b(official\s*(music\s*)?video|official\s*audio|lyric\s*video|mv|clip|lirik)\b", title, re.IGNORECASE)
+    )
+
+    # Ekstrak Nama Artis & Judul Bersih
+    clean_title_cand = re.sub(r"[\(\[\{].*?(official|video|audio|lirik|lyric|clip|mv|remaster|hd|4k|m\/v).*?[\)\]\}]", "", title, flags=re.IGNORECASE).strip()
+    clean_title_cand = re.sub(r"\s+", " ", clean_title_cand)
+
+    if is_music:
+        console.print(Panel(
+            f"[bold magenta]🎵 Terdeteksi sebagai Video Musik / Lagu:[/bold magenta] [bold white]{clean_title_cand}[/bold white]\n"
+            f"[dim]Tersedia opsi download [bold green]Studio FLAC Lossless[/bold green] (Lirik LRCLIB + Cover Art 1200px).[/dim]",
+            border_style="magenta"
+        ))
+
     # Parse Formats
     formats = info.get("formats", [])
     available_videos = []
@@ -345,22 +371,32 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
         table = Table(title="Pilihan Format & Kualitas", box=box.ROUNDED)
         table.add_column("No", style="bold yellow", width=5, justify="center")
         table.add_column("Tipe", style="bold cyan", width=12)
-        table.add_column("Kualitas / Resolusi", style="white", width=25)
+        table.add_column("Kualitas / Resolusi", style="white", width=34)
         table.add_column("Format", style="dim", width=10)
         table.add_column("Estimasi Ukuran", style="green", width=15)
 
         options = []
-        # Opsi Otomatis
-        options.append({"label": "Video Terbaik (Best Video + Best Audio / Mux)", "arg": "best[height<=1080]/bestvideo+bestaudio/best", "ext": "mp4", "audio": False})
-        table.add_row("1", "Video", "[bold green]Otomatis Terbaik (4K/HD)[/bold green]", "mp4/mkv", "Maksimal")
 
-        options.append({"label": "Audio MP3 (320kbps / Best)", "arg": "bestaudio/best", "ext": "mp3", "audio": True})
-        table.add_row("2", "Audio", "[bold magenta]Ekstrak MP3 (High Quality)[/bold magenta]", "mp3", "Ringan")
+        if is_music:
+            options.append({"label": "Studio FLAC Lossless (Lagu Utuh + Cover 1200px + Lirik)", "arg": "bestaudio/best", "ext": "flac", "audio": True, "smart_music": True})
+            table.add_row("1", "Musik Hi-Res", "[bold green]Studio FLAC Lossless (HD Cover & Lirik)[/bold green]", "flac", "30-55 MB")
 
-        options.append({"label": "Audio M4A / AAC Asli", "arg": "bestaudio[ext=m4a]/bestaudio", "ext": "m4a", "audio": True})
-        table.add_row("3", "Audio", "Audio M4A / AAC Lossy", "m4a", "Ringan")
+            options.append({"label": "Audio MP3 (320kbps HQ + Cover & Lirik)", "arg": "bestaudio/best", "ext": "mp3", "audio": True, "smart_music": True})
+            table.add_row("2", "Audio MP3", "[bold magenta]Audio MP3 320kbps (ID3 & Cover)[/bold magenta]", "mp3", "~10 MB")
 
-        opt_idx = 4
+            options.append({"label": "Video Terbaik (Best Video + Best Audio / Mux)", "arg": "best[height<=1080]/bestvideo+bestaudio/best", "ext": "mp4", "audio": False, "smart_music": False})
+            table.add_row("3", "Video", "Video MP4 (1080p/4K Otomatis)", "mp4/mkv", "Maksimal")
+        else:
+            options.append({"label": "Video Terbaik (Best Video + Best Audio / Mux)", "arg": "best[height<=1080]/bestvideo+bestaudio/best", "ext": "mp4", "audio": False, "smart_music": False})
+            table.add_row("1", "Video", "[bold green]Otomatis Terbaik (4K/HD)[/bold green]", "mp4/mkv", "Maksimal")
+
+            options.append({"label": "Audio MP3 (320kbps / Best)", "arg": "bestaudio/best", "ext": "mp3", "audio": True, "smart_music": False})
+            table.add_row("2", "Audio", "[bold magenta]Ekstrak MP3 (High Quality)[/bold magenta]", "mp3", "Ringan")
+
+            options.append({"label": "Audio M4A / AAC Asli", "arg": "bestaudio[ext=m4a]/bestaudio", "ext": "m4a", "audio": True, "smart_music": False})
+            table.add_row("3", "Audio", "Audio M4A / AAC Lossy", "m4a", "Ringan")
+
+        opt_idx = len(options) + 1
         # Video Heights
         for v in available_videos[:5]:
             h = v["height"]
@@ -369,6 +405,7 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
                 "arg": f"best[height<={h}]/bestvideo[height<={h}]+bestaudio/best",
                 "ext": "mp4",
                 "audio": False,
+                "smart_music": False,
             })
             table.add_row(str(opt_idx), "Video", f"Resolusi {h}p", v["ext"], format_bytes(v["size"]))
             opt_idx += 1
@@ -380,8 +417,15 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
             selected_format_arg = chosen["arg"]
             out_ext = chosen["ext"]
             is_audio_mode = chosen["audio"]
+            if chosen.get("smart_music"):
+                # Redirect to studio master music pipeline with iTunes metadata + LRCLIB lyrics + 1200px artwork
+                search_and_download_music(clean_title_cand, format_choice=out_ext, output_dir=str(target_dir))
+                return
     else:
         if format_choice.lower() in ["mp3", "audio", "flac", "m4a"]:
+            if is_music and format_choice.lower() in ["flac", "mp3"]:
+                search_and_download_music(clean_title_cand, format_choice=format_choice.lower(), output_dir=str(target_dir))
+                return
             selected_format_arg = "bestaudio/best"
             out_ext = format_choice.lower()
             is_audio_mode = True
