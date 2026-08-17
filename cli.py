@@ -282,10 +282,36 @@ def self_heal_update_engines():
         pass
 
 
+def parse_time_to_seconds(t_str: Optional[str]) -> Optional[float]:
+    """Konversi waktu format '01:30' atau '01:15:30' atau '90' ke detik."""
+    if not t_str:
+        return None
+    try:
+        parts = t_str.strip().split(":")
+        if len(parts) == 1:
+            return float(parts[0])
+        elif len(parts) == 2:
+            return float(parts[0]) * 60 + float(parts[1])
+        elif len(parts) == 3:
+            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+    except Exception:
+        pass
+    return None
+
+
 # ============================================================================
 # UNIVERSAL MEDIA ANALYZER & DOWNLOADER
 # ============================================================================
-def analyze_and_download_media(url: str, format_choice: Optional[str] = None, audio_only: bool = False, output_dir: Optional[str] = None):
+def analyze_and_download_media(
+    url: str,
+    format_choice: Optional[str] = None,
+    audio_only: bool = False,
+    output_dir: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    subtitles: bool = False,
+    sub_lang: str = "id,en",
+):
     """Analisis URL media menggunakan yt-dlp dan lakukan unduhan interaktif atau direct."""
     trigger_silent_background_update()
     try:
@@ -527,6 +553,25 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
         },
     }
 
+    # 1. Trimming / Potong Rentang Waktu (Start Time & End Time)
+    start_sec = parse_time_to_seconds(start_time) or 0
+    end_sec = parse_time_to_seconds(end_time)
+    if start_sec > 0 or end_sec is not None:
+        try:
+            import yt_dlp.utils
+            ydl_opts_download["download_ranges"] = yt_dlp.utils.download_range_func(None, [(start_sec, end_sec or float('inf'))])
+            ydl_opts_download["force_keyframes_at_cuts"] = True
+            console.print(f"[bold yellow]✂️ Memotong durasi:[/bold yellow] [white]{start_time or '00:00'} ➔ {end_time or 'Akhir'}[/white]")
+        except Exception as e:
+            console.print(f"[dim yellow]Notice range trimming: {e}[/dim yellow]")
+
+    # 2. Subtitles Auto-Downloader & Embedder
+    if subtitles:
+        ydl_opts_download["writesubtitles"] = True
+        ydl_opts_download["writeautomaticsub"] = True
+        ydl_opts_download["subtitleslangs"] = [s.strip() for s in (sub_lang or "id,en").split(",")]
+        console.print(f"[bold cyan]🎬 Mengunduh Subtitle:[/bold cyan] [white]{sub_lang}[/white]")
+
     if is_audio_mode:
         if out_ext in ["flac", "mp3", "m4a", "wav", "aac", "opus"]:
             postproc = {
@@ -538,6 +583,11 @@ def analyze_and_download_media(url: str, format_choice: Optional[str] = None, au
             elif out_ext == "flac":
                 postproc["preferredquality"] = "0" # Highest FLAC compression / Lossless
             ydl_opts_download["postprocessors"] = [postproc]
+    elif subtitles:
+        # Embed Subtitle ke dalam Video MP4/MKV
+        if "postprocessors" not in ydl_opts_download:
+            ydl_opts_download["postprocessors"] = []
+        ydl_opts_download["postprocessors"].append({"key": "FFmpegEmbedSubtitle"})
 
     with progress:
         try:
@@ -1204,6 +1254,10 @@ def main():
     p_get.add_argument("-f", "--format", help="Kualitas/Format (contoh: 1080p, 720p, 4k, mp3, m4a)")
     p_get.add_argument("-a", "--audio", action="store_true", help="Hanya unduh audio (MP3)")
     p_get.add_argument("-o", "--output", help="Direktori tujuan penyimpanan")
+    p_get.add_argument("--start", help="Waktu mulai potong video/audio (contoh: 01:20 atau 80)")
+    p_get.add_argument("--end", help="Waktu akhir potong video/audio (contoh: 03:45 atau 225)")
+    p_get.add_argument("--sub", action="store_true", help="Otomatis unduh & tanam subtitle")
+    p_get.add_argument("--sub-lang", default="id,en", help="Bahasa subtitle (default: id,en)")
 
     # 2. torrent
     p_tor = subparsers.add_parser("torrent", help="Cari dan unduh torrent dari terminal")
@@ -1260,7 +1314,16 @@ def main():
 
     # Route subcommands
     if args.subcommand == "get":
-        analyze_and_download_media(args.url, format_choice=args.format, audio_only=args.audio, output_dir=args.output)
+        analyze_and_download_media(
+            args.url,
+            format_choice=args.format,
+            audio_only=args.audio,
+            output_dir=args.output,
+            start_time=args.start,
+            end_time=args.end,
+            subtitles=args.sub,
+            sub_lang=args.sub_lang,
+        )
     elif args.subcommand == "torrent":
         search_and_download_torrent(args.query, output_dir=args.output)
     elif args.subcommand == "music":

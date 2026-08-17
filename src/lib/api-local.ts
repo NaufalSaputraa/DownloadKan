@@ -169,6 +169,10 @@ export async function startLocalDownload(params: {
   artist?: string
   album?: string
   artwork?: string
+  start_time?: string
+  end_time?: string
+  subtitles?: boolean
+  sub_lang?: string
 }): Promise<{ status: string; job_id: string }> {
   const res = await fetch(`${getBackendBaseUrl()}/api/download`, {
     method: 'POST',
@@ -181,6 +185,10 @@ export async function startLocalDownload(params: {
       artist: params.artist,
       album: params.album,
       artwork: params.artwork,
+      start_time: params.start_time,
+      end_time: params.end_time,
+      subtitles: params.subtitles,
+      sub_lang: params.sub_lang || 'id,en',
     }),
   })
   if (!res.ok) {

@@ -2,10 +2,8 @@ import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { AnalyzedMedia as MediaResult, AnalyzedDownload as MediaDownload } from '../lib/api-local'
 import { useLocalBackend } from '../hooks/useLocalBackend'
+import { VideoPlayerModal } from './VideoPlayerModal'
 
-/**
- * Tentukan extension file yang benar dari type label dan URL.
- */
 function guessExtension(item: MediaDownload): string {
   const t = item.type.toLowerCase()
   const u = (item.url || '').toLowerCase()
@@ -42,7 +40,7 @@ function buildDownloadFilename(title: string, item: MediaDownload): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Ikon SVG                                                          */
+/*  SVG Icons (No Emojis)                                             */
 /* ------------------------------------------------------------------ */
 function CopyIcon() {
   return (
@@ -87,6 +85,37 @@ function DownloadIcon() {
   )
 }
 
+function ScissorsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+      <line x1="8.12" y1="8.12" x2="12" y2="12" />
+    </svg>
+  )
+}
+
+function SubtitleIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <line x1="6" y1="12" x2="10" y2="12" />
+      <line x1="14" y1="12" x2="18" y2="12" />
+      <line x1="6" y1="16" x2="14" y2="16" />
+    </svg>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /*  Komponen utama                                                    */
 /* ------------------------------------------------------------------ */
@@ -94,33 +123,32 @@ export function MediaResult({ result }: { result: MediaResult }) {
   const [active, setActive] = useState(0)
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
   const [dlState, setDlState] = useState<'idle' | 'downloading' | 'done'>('idle')
+  const [trimOpen, setTrimOpen] = useState(false)
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
+  const [withSubtitles, setWithSubtitles] = useState(false)
+  const [subLang, setSubLang] = useState('id,en')
+  const [videoModalOpen, setVideoModalOpen] = useState(false)
+
   const { isLocal, download: startLocalDownload } = useLocalBackend()
   const item = result.downloads[active]
   const platformTag = result.platform || 'media'
 
   const handleCopy = useCallback(async () => {
     if (copyState === 'copied') return
-    const targetUrl = item.url || result.sourceUrl || window.location.href
+    const targetUrl = item?.url || result.sourceUrl || window.location.href
     try {
       await navigator.clipboard.writeText(targetUrl)
       setCopyState('copied')
       setTimeout(() => setCopyState('idle'), 2200)
     } catch {
-      const ta = document.createElement('textarea')
-      ta.value = targetUrl
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
       setCopyState('copied')
       setTimeout(() => setCopyState('idle'), 2200)
     }
   }, [item, copyState, result.sourceUrl])
 
   const handleDownload = useCallback(async () => {
-    if (dlState === 'downloading') return
+    if (dlState === 'downloading' || !item) return
     setDlState('downloading')
     const filename = buildDownloadFilename(result.title, item)
 
@@ -130,9 +158,15 @@ export function MediaResult({ result }: { result: MediaResult }) {
         const isAudio = /mp3|audio|flac|music/i.test(item.type)
         await startLocalDownload(
           result.sourceUrl,
-          isAudio ? 'mp3' : 'best',
+          isAudio ? (item.type.includes('flac') ? 'flac' : 'mp3') : 'best',
           isAudio ? 'Music' : 'Videos',
           filename,
+          {
+            start_time: startTime || undefined,
+            end_time: endTime || undefined,
+            subtitles: withSubtitles,
+            sub_lang: subLang,
+          },
         )
         setDlState('done')
         setTimeout(() => setDlState('idle'), 3000)
@@ -158,244 +192,232 @@ export function MediaResult({ result }: { result: MediaResult }) {
       setDlState('done')
       setTimeout(() => setDlState('idle'), 3000)
     } catch {
-      window.open(item.url, '_blank', 'noopener,noreferrer')
-      setDlState('done')
-      setTimeout(() => setDlState('idle'), 3000)
+      window.open(item.url || result.sourceUrl, '_blank')
+      setDlState('idle')
     }
-  }, [result.title, result.sourceUrl, item, dlState, isLocal, startLocalDownload])
+  }, [item, dlState, result, isLocal, startLocalDownload, startTime, endTime, withSubtitles, subLang])
 
   return (
-    <motion.article
-      layout
-      initial={{ opacity: 0, y: 16, scale: 0.99 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="glass w-full overflow-hidden rounded-[24px]"
-    >
-      <div className="grid grid-cols-1 gap-0 sm:grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[210px_minmax(0,1fr)]">
-        {/* Thumbnail preview */}
-        <div className="relative aspect-video sm:aspect-auto sm:h-full overflow-hidden bg-glass-2 border-b sm:border-b-0 sm:border-r border-glass-border">
-          {result.thumbnail ? (
-            <img
-              src={result.thumbnail}
-              alt={result.title}
-              className="h-full w-full object-cover object-center transition-transform duration-500 hover:scale-105"
-              loading="lazy"
-            />
-          ) : (
-            <div className="flex h-full min-h-[140px] w-full items-center justify-center text-ink-faint">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M10 9l5 3-5 3V9z" fill="currentColor" />
-              </svg>
+    <>
+      <motion.article
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="glass-2 rounded-2xl p-4 sm:p-5 border border-glass-border shadow-2xl backdrop-blur-2xl flex flex-col gap-4"
+      >
+        {/* Header Preview & Metadata */}
+        <div className="flex items-start gap-3.5">
+          {result.thumbnail && (
+            <div className="relative group rounded-xl overflow-hidden border border-glass-border flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 bg-black/40 shadow-md">
+              <img
+                src={result.thumbnail}
+                alt={result.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              {/* Play Button Overlay */}
+              <button
+                type="button"
+                onClick={() => setVideoModalOpen(true)}
+                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
+                title="Pratinjau Video"
+              >
+                <span className="p-2 rounded-full bg-accent/80 backdrop-blur-sm shadow-md">
+                  <PlayIcon />
+                </span>
+              </button>
             </div>
           )}
-          <span className="absolute bottom-2 left-2 rounded-full bg-black/60 backdrop-blur-md px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-white">
-            {platformTag}
-          </span>
+
+          <div className="flex-1 min-w-0 flex flex-col justify-between h-full py-0.5">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider bg-accent/15 text-accent border border-accent/25">
+                  {platformTag}
+                </span>
+                {result.duration ? (
+                  <span className="font-mono text-[11px] text-ink-muted">
+                    {Math.floor(result.duration / 60)}:{(result.duration % 60).toString().padStart(2, '0')}
+                  </span>
+                ) : null}
+              </div>
+              <h3 className="font-display font-medium text-base sm:text-lg text-ink leading-snug line-clamp-2">
+                {result.title}
+              </h3>
+            </div>
+
+            {/* Quick Play Trigger for Video */}
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setVideoModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-glass hover:bg-glass-2 border border-glass-border text-ink-muted hover:text-ink transition-colors cursor-pointer"
+              >
+                <PlayIcon />
+                <span>Pratinjau Player</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="flex flex-col justify-between p-4 sm:p-5 gap-4">
-          <div className="space-y-1.5 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">
-                Sumber
-              </span>
-              <span className="ms-auto rounded-full bg-glass-2 px-2 py-0.5 text-[11px] text-accent">
-                {result.engine}
-              </span>
-            </div>
-            <h2 className="line-clamp-2 break-words text-base sm:text-lg font-medium leading-snug text-ink">{result.title}</h2>
-            <p className="truncate max-w-full font-mono text-xs text-ink-faint" title={result.sourceUrl}>
-              {result.sourceUrl}
-            </p>
-          </div>
-
-          {item && (
-            <div className="min-w-0 space-y-3">
-              <div className="flex max-w-full flex-wrap gap-2 overflow-hidden">
-                {result.downloads.map((d, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActive(i)}
-                    className={`rounded-full border px-3.5 py-1.5 text-xs sm:text-sm transition-colors ${
-                      i === active
-                        ? 'border-accent bg-accent-soft text-accent font-medium'
-                        : 'border-glass-border-soft text-ink-muted hover:border-glass-border hover:text-ink'
-                    }`}
-                    aria-pressed={i === active}
-                  >
-                    {d.type}
-                  </button>
-                ))}
-              </div>
-
-              {/* Audio Preview Inline Player */}
-              {/mp3|audio|music|sound|preview/i.test(item.type) && (
-                <div className="mt-2 min-w-0 rounded-2xl border border-glass-border bg-glass/60 p-3">
-                  <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
-                    <span className="flex items-center gap-1.5 font-medium text-ink">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M9 18V5l12-2v13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        <circle cx="6" cy="18" r="3" stroke="currentColor" strokeWidth="1.8" />
-                        <circle cx="18" cy="16" r="3" stroke="currentColor" strokeWidth="1.8" />
-                      </svg>
-                      Pemutar Audio ({item.type})
-                    </span>
-                    {!/preview|pratinjau/i.test(item.type) && (
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">Lagu Utuh</span>
-                    )}
-                  </div>
-                  <audio controls controlsList="nodownload" className="h-8 w-full rounded-lg accent-accent" src={item.url}>
-                    Browser-mu tidak mendukung pemutar audio.
-                  </audio>
-                </div>
-              )}
-
-              <div className="flex max-w-full flex-wrap items-center gap-2 pt-1 overflow-hidden">
-                {/* Tombol Download Utama */}
+        {/* Format Selector Pills */}
+        <div>
+          <label className="block font-mono text-[11px] text-ink-muted mb-2 uppercase tracking-wider">
+            Pilihan Kualitas & Format
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {result.downloads.map((d, idx) => {
+              const isSelected = active === idx
+              return (
                 <button
+                  key={idx}
                   type="button"
-                  disabled={dlState === 'downloading'}
-                  onClick={handleDownload}
-                  className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs sm:text-sm font-medium transition-all ${
-                    dlState === 'done'
-                      ? 'bg-emerald-500/90 text-white'
-                      : dlState === 'downloading'
-                        ? 'bg-ink/70 text-paper cursor-wait'
-                        : 'bg-ink text-paper hover:bg-[oklch(86%_0.008_260)] active:scale-[0.97]'
+                  aria-pressed={isSelected}
+                  onClick={() => setActive(idx)}
+                  className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-accent/15 border-accent text-ink shadow-sm'
+                      : 'bg-glass/40 border-glass-border hover:bg-glass text-ink-muted hover:text-ink'
                   }`}
-                  title={isLocal ? "Unduh langsung ke folder Downloads HP/PC" : "Unduh via browser"}
                 >
-                  <AnimatePresence mode="wait" initial={false}>
-                    {dlState === 'downloading' ? (
-                      <motion.span key="spin" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
-                        <SpinnerIcon />
-                      </motion.span>
-                    ) : dlState === 'done' ? (
-                      <motion.span key="check" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
-                        <CheckIcon />
-                      </motion.span>
-                    ) : (
-                      <motion.span key="dl" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
-                        <DownloadIcon />
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                  {dlState === 'downloading' ? 'Mengunduh…' : dlState === 'done' ? 'Tersimpan!' : isLocal ? `Simpan ${item.type}` : `Unduh ${item.type}`}
+                  <span className="font-display font-medium text-xs truncate" aria-pressed={isSelected}>
+                    {d.type}
+                  </span>
+                  <span className="font-mono text-[10px] opacity-70 mt-1">
+                    {d.filesize ? `${(d.filesize / 1024 / 1024).toFixed(1)} MB` : d.ext?.toUpperCase() || 'HQ'}
+                  </span>
                 </button>
-
-                {/* Tombol Salin Tautan dengan animasi feedback */}
-                <button
-                  onClick={handleCopy}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs transition-all duration-300 ${
-                    copyState === 'copied'
-                      ? 'border-emerald-400/50 bg-emerald-400/15 text-emerald-300 scale-[1.03]'
-                      : 'border-glass-border bg-glass text-ink-muted hover:text-ink hover:border-glass-border-strong active:scale-[0.97]'
-                  }`}
-                  title="Salin URL langsung untuk di-paste di IDM / ABDM / Aria2"
-                >
-                  <AnimatePresence mode="wait" initial={false}>
-                    {copyState === 'copied' ? (
-                      <motion.span
-                        key="check"
-                        initial={{ opacity: 0, scale: 0.3, rotate: -90 }}
-                        animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                        exit={{ opacity: 0, scale: 0.3 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                      >
-                        <CheckIcon />
-                      </motion.span>
-                    ) : (
-                      <motion.span
-                        key="copy"
-                        initial={{ opacity: 0, scale: 0.3 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.3 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <CopyIcon />
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                  {copyState === 'copied' ? 'Tersalin!' : 'Salin Tautan (IDM/ABDM)'}
-                </button>
-
-                {/* PDF Exporter untuk Galeri / Slide Foto */}
-                {result.downloads.length > 1 && (
-                  <button
-                    onClick={() => exportGalleryToPdf(result)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent-soft px-3.5 py-2 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
-                    title="Gabungkan galeri foto menjadi 1 file PDF"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    PDF ({result.downloads.length} Item)
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </motion.article>
-  )
-}
-
-function exportGalleryToPdf(result: MediaResult) {
-  const win = window.open('', '_blank')
-  if (!win) {
-    alert('Izinkan popup di browser-mu untuk mengekspor PDF galeri.')
-    return
-  }
-
-  const safeTitle = result.title.replace(/[^\w\s-]/g, '')
-  const html = `
-    <!DOCTYPE html>
-    <html lang="id">
-      <head>
-        <meta charset="utf-8">
-        <title>${safeTitle} - Galeri PDF DownloadKan</title>
-        <style>
-          @page { size: A4 portrait; margin: 15mm; }
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #fff; color: #111; margin: 0; padding: 20px; }
-          .header { border-bottom: 2px solid #eee; padding-bottom: 12px; margin-bottom: 24px; }
-          h1 { font-size: 20px; margin: 0 0 6px 0; color: #0b0c0f; }
-          .meta { font-size: 12px; color: #666; font-family: monospace; }
-          .page-item { page-break-after: always; text-align: center; margin-bottom: 30px; }
-          .page-item:last-child { page-break-after: auto; }
-          img { max-width: 100%; max-height: 230mm; object-fit: contain; border-radius: 8px; border: 1px solid #eee; }
-          .caption { font-size: 11px; color: #888; margin-top: 8px; font-family: monospace; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${result.title}</h1>
-          <div class="meta">DownloadKan Gallery Export · Platform: ${result.platform.toUpperCase()} · Total ${result.downloads.length} Items</div>
-        </div>
-        ${result.downloads
-          .map(
-            (item, idx) => `
-          <div class="page-item">
-            <img src="${item.url}" alt="Item ${idx + 1}" />
-            <div class="caption">Halaman ${idx + 1} dari ${result.downloads.length} (${item.type})</div>
+              )
+            })}
           </div>
-        `,
-          )
-          .join('')}
-        <script>
-          window.onload = () => {
-            setTimeout(() => {
-              window.print();
-            }, 600);
-          };
-        </script>
-      </body>
-    </html>
-  `
-  win.document.write(html)
-  win.document.close()
+        </div>
+
+        {/* Expandable Advanced Options: Time Trimmer & Subtitles */}
+        <div className="border-t border-glass-border/60 pt-3">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setTrimOpen(!trimOpen)}
+              className="inline-flex items-center gap-1.5 text-xs font-mono text-ink-muted hover:text-ink transition-colors cursor-pointer"
+            >
+              <ScissorsIcon />
+              <span>{trimOpen ? 'Sembunyikan Opsi Lanjutan' : 'Potong Durasi & Subtitle'}</span>
+            </button>
+
+            <label className="inline-flex items-center gap-1.5 text-xs font-mono text-ink-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={withSubtitles}
+                onChange={(e) => setWithSubtitles(e.target.checked)}
+                className="rounded border-glass-border bg-glass text-accent focus:ring-0 cursor-pointer"
+              />
+              <SubtitleIcon />
+              <span>Sertakan Subtitle</span>
+            </label>
+          </div>
+
+          <AnimatePresence>
+            {trimOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-3 p-3 rounded-xl bg-glass/30 border border-glass-border flex flex-col gap-2.5 overflow-hidden"
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-mono text-[10px] text-ink-muted mb-1">
+                      Mulai (Start Time)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="00:00"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-glass border border-glass-border text-xs font-mono text-ink focus:border-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-mono text-[10px] text-ink-muted mb-1">
+                      Selesai (End Time)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="02:30"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-glass border border-glass-border text-xs font-mono text-ink focus:border-accent"
+                    />
+                  </div>
+                </div>
+
+                {/* Subtitle Language Selector */}
+                {withSubtitles && (
+                  <div className="pt-1">
+                    <label className="block font-mono text-[10px] text-ink-muted mb-1">
+                      Bahasa Subtitle
+                    </label>
+                    <select
+                      value={subLang}
+                      onChange={(e) => setSubLang(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-glass border border-glass-border text-xs font-mono text-ink cursor-pointer"
+                    >
+                      <option value="id,en" className="bg-paper text-ink">Indonesia & English (Default)</option>
+                      <option value="id" className="bg-paper text-ink">Indonesia Only (id)</option>
+                      <option value="en" className="bg-paper text-ink">English Only (en)</option>
+                      <option value="all" className="bg-paper text-ink">Semua Bahasa Tersedia (all)</option>
+                    </select>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Action Buttons: Copy Link & Download Now */}
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="px-3.5 py-2.5 rounded-xl border border-glass-border bg-glass hover:bg-glass-2 text-ink-muted hover:text-ink text-xs font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            title="Salin Tautan Langsung"
+          >
+            {copyState === 'copied' ? <CheckIcon /> : <CopyIcon />}
+            <span>{copyState === 'copied' ? 'Tersalin' : 'Salin Tautan'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={dlState === 'downloading'}
+            className="flex-1 py-2.5 px-4 rounded-xl bg-accent text-paper font-display font-medium text-sm flex items-center justify-center gap-2 hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer shadow-lg shadow-accent/15 disabled:opacity-50"
+          >
+            {dlState === 'downloading' ? (
+              <>
+                <SpinnerIcon />
+                <span>Memproses Unduhan...</span>
+              </>
+            ) : dlState === 'done' ? (
+              <>
+                <CheckIcon />
+                <span>Unduhan Dimulai!</span>
+              </>
+            ) : (
+              <>
+                <DownloadIcon />
+                <span>Unduh {item ? item.type : 'Sekarang'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </motion.article>
+
+      {/* In-Browser Video Player Modal */}
+      <VideoPlayerModal
+        isOpen={videoModalOpen}
+        onClose={() => setVideoModalOpen(false)}
+        videoUrl={item?.url || result.sourceUrl}
+        title={result.title}
+      />
+    </>
+  )
 }

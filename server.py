@@ -233,6 +233,23 @@ def embed_flac_metadata(file_path: Path, title: str, artist: str, album: str, co
         print(f"Warning: mutagen FLAC embed error: {e}")
 
 
+def parse_time_to_seconds(t_str: Optional[str]) -> Optional[float]:
+    """Konversi waktu format '01:30' atau '01:15:30' atau '90' ke detik."""
+    if not t_str:
+        return None
+    try:
+        parts = t_str.strip().split(":")
+        if len(parts) == 1:
+            return float(parts[0])
+        elif len(parts) == 2:
+            return float(parts[0]) * 60 + float(parts[1])
+        elif len(parts) == 3:
+            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+    except Exception:
+        pass
+    return None
+
+
 # ============================================================================
 # UNIVERSAL MEDIA ANALYZER (yt-dlp)
 # ============================================================================
@@ -338,6 +355,10 @@ class DownloadJobRequest(BaseModel):
     album: Optional[str] = None
     artwork: Optional[str] = None
     category: str = "Videos" # "Videos", "Music", "Torrents"
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    subtitles: bool = False
+    sub_lang: str = "id,en"
 
 @app.post("/api/download")
 async def start_download(req: DownloadJobRequest):
@@ -512,23 +533,31 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
             "progress_hooks": [ytdl_progress_hook],
             "quiet": True,
             "no_warnings": True,
-            "format": "bestvideo+bestaudio/best/18",
-            "writesubtitles": True,
-            "writeautomaticsub": True,
-            "subtitleslangs": ["id", "en", "all"],
-            "subtitlesformat": "srt",
+            "format": "bestvideo+bestaudio/best",
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["android", "web"]
+                    "player_client": ["android", "ios", "web"]
                 }
             },
-            "postprocessors": [
-                {
-                    "key": "FFmpegEmbedSubtitle",
-                    "already_have_subtitle": False,
-                }
-            ],
         }
+
+        # Trimming rentang waktu
+        start_sec = parse_time_to_seconds(req.start_time) or 0
+        end_sec = parse_time_to_seconds(req.end_time)
+        if start_sec > 0 or end_sec is not None:
+            try:
+                import yt_dlp.utils
+                ydl_opts["download_ranges"] = yt_dlp.utils.download_range_func(None, [(start_sec, end_sec or float("inf"))])
+                ydl_opts["force_keyframes_at_cuts"] = True
+            except Exception:
+                pass
+
+        # Subtitles
+        if req.subtitles:
+            ydl_opts["writesubtitles"] = True
+            ydl_opts["writeautomaticsub"] = True
+            ydl_opts["subtitleslangs"] = [s.strip() for s in req.sub_lang.split(",")]
+            ydl_opts["postprocessors"] = [{"key": "FFmpegEmbedSubtitle", "already_have_subtitle": False}]
 
         loop = asyncio.get_event_loop()
         def do_download():

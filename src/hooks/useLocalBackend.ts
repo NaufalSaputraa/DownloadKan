@@ -69,8 +69,23 @@ export function useLocalBackend() {
       format: string = 'best',
       category: 'Videos' | 'Music' | 'Torrents' = 'Videos',
       filename?: string,
+      options?: {
+        start_time?: string
+        end_time?: string
+        subtitles?: boolean
+        sub_lang?: string
+      },
     ) => {
-      return startLocalDownload({ url, format, category, title: filename })
+      return startLocalDownload({
+        url,
+        format,
+        category,
+        title: filename,
+        start_time: options?.start_time,
+        end_time: options?.end_time,
+        subtitles: options?.subtitles,
+        sub_lang: options?.sub_lang,
+      })
     },
     [],
   )
