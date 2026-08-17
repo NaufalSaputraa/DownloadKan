@@ -12,16 +12,54 @@
 
 ---
 
-## 📸 Antarmuka Web & Terminal Showcase
+## 📸 Galeri & Fitur Lengkap DownloadKan
 
-### 🌐 1. Sleek Dark Glassmorphism Web UI
+### 🌐 1. Sleek Glassmorphism Web UI (Landing & Hero)
 <div align="center">
-  <img src="docs/screenshots/web_landing.png" alt="DownloadKan Web UI" width="900" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" />
+  <img src="docs/screenshots/01_landing_hero.png" alt="DownloadKan Landing Hero" width="900" style="border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);" />
 </div>
 
 <br />
 
-### 💻 2. Interactive Terminal Dashboard & Rich TUI
+### 🔍 2. Pencarian Terpadu Musik & Video (60+ Hasil & Paginasi Bersih)
+<div align="center">
+  <img src="docs/screenshots/02_search_results_pagination.png" alt="Unified Search Results & Pagination" width="900" style="border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);" />
+</div>
+
+<br />
+
+### 🎛️ 3. Drawer Pilihan Format Audio Lengkap (FLAC, MP3 320k, M4A, WAV, OPUS)
+<div align="center">
+  <img src="docs/screenshots/03_format_selector_drawer.png" alt="Audio Format Selection Drawer" width="900" style="border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);" />
+</div>
+
+<br />
+
+### 🎤 4. Pemutar Musik Karaoke & Lirik Tersinkronisasi dengan Offset Calibrator
+<div align="center">
+  <img src="docs/screenshots/04_karaoke_lyrics_sync.png" alt="Synchronized Karaoke Lyrics & Mini Player" width="900" style="border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);" />
+</div>
+
+<br />
+
+### 🎬 5. Analisis Resolusi Video 1080p / 4K, Pemotong Durasi & Subtitle
+<div align="center">
+  <img src="docs/screenshots/05_video_analyzer_1080p_trimmer.png" alt="Video Resolution Analyzer and Duration Trimmer" width="900" style="border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);" />
+</div>
+
+<br />
+
+### 🧲 6. Multi-Indexer Torrent Search & WebTorrent In-Browser
+<div align="center">
+  <img src="docs/screenshots/06_torrent_multisearch_p2p.png" alt="Multi-Indexer Torrent Search and WebTorrent" width="900" style="border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.6);" />
+</div>
+
+<br />
+
+---
+
+## 💻 Interactive Terminal Dashboard & Rich TUI
+
 <div align="center">
   <img src="docs/screenshots/tui_main_menu.svg" alt="DownloadKan TUI Dashboard" width="900" />
 </div>
@@ -48,6 +86,8 @@
   - **🎬 Auto-Subtitles (.SRT / Muxed)**: Unduh & embed subtitle otomatis (`--sub --sub-lang id,en`).
 - **🎵 Studio Hi-Res Lossless Music (streamrip + LRCLIB + Apple Music Metadata)**:
   - **Smart Music Detection**: Otomatis mendeteksi lagu dari video YouTube dan mencocokkan ke master FLAC 24-bit studio.
+  - **Drawer Format Musik**: Pilih format audio instan: FLAC Lossless 24-bit, MP3 320k, M4A 256k, WAV 16-bit, dan OPUS 160k.
+  - **Karaoke Lyrics Sync & Player**: Pemutar audio in-browser dengan visualizer waveform dan penampil lirik sinkron real-time beserta pengatur offset latensi.
   - **Album & Playlist Subfolder**: Mengurai album dari Apple Music, Spotify, YouTube Music dan otomatis mengelompokkan ke subfolder `{Artist} - {Album}/` disertai file playlist `.m3u`.
   - Cover art resolusi tinggi 1200x1200px dan lirik karaoke tersinkronisasi.
 - **🧲 Torrent Multi-Source Aggregator (TorLink + aria2c / WebTorrent)**:
@@ -63,7 +103,7 @@
 
 ---
 
-## 🚀 Instalasi Cepat (Termux / Linux / macOS)
+## 🚀 Instalasi Cepat (Termux / Linux / macOS / Windows)
 
 Cukup jalankan 1 baris perintah ini di terminal:
 
@@ -121,11 +161,13 @@ pip install -r requirements.txt
 
 # 3. Jalankan server pengembangan
 npm run dev
+python server.py
 
-# 4. Jalankan pengujian unit
+# 4. Jalankan pengujian unit & E2E
 npm test
 python test_cli.py
 python test_server.py
+python test_e2e_thorough.py
 ```
 
 ---
