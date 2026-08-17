@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTorrent, type ActiveTorrent } from '../hooks/useTorrent'
 import { useLocalBackend } from '../hooks/useLocalBackend'
 import { searchTorrentsFromApi } from '../engines/torrent/search'
-import { searchLocalTorrent } from '../lib/api-local'
+import { searchLocalTorrent, autoDownloadSubtitles } from '../lib/api-local'
+import { useToast } from '../hooks/useToast'
 import type { TorrentHit } from '../engines/torrent/sources'
 import { formatEta, formatSpeed } from '../utils/format'
 import { Chip } from './ui/Chip'
@@ -11,6 +12,7 @@ import { Chip } from './ui/Chip'
 export function TorrentPanel() {
   const { active, start, remove, clearFinished } = useTorrent()
   const { isLocal, download: startLocalDownload } = useLocalBackend()
+  const { push } = useToast()
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [hits, setHits] = useState<TorrentHit[]>([])
@@ -162,21 +164,45 @@ export function TorrentPanel() {
                     {/* Salin Magnet */}
                     <button
                       onClick={() => handleCopyMagnet(h.magnet, i)}
-                      className="rounded-full border border-glass-border px-3 py-1.5 text-xs text-ink-muted transition-colors hover:text-ink"
+                      className="rounded-full border border-glass-border px-3 py-1.5 text-xs text-ink-muted transition-colors hover:text-ink cursor-pointer"
                       title="Salin tautan magnet ke clipboard"
                     >
                       {copiedIndex === i ? 'Tersalin ✓' : 'Salin Magnet'}
                     </button>
+
+                    {/* Ambil Subtitle Otomatis */}
+                    {isLocal && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            push(`Mencari subtitle Indonesia & English untuk "${h.title}"...`, 'info')
+                            const files = await autoDownloadSubtitles(h.title)
+                            if (files.length > 0) {
+                              push(`Berhasil mengunduh ${files.length} subtitle: ${files.join(', ')}`, 'success')
+                            } else {
+                              push(`Subtitle untuk film ini belum ditemukan di basis data.`, 'info')
+                            }
+                          } catch {
+                            push(`Gagal mengambil subtitle.`, 'error')
+                          }
+                        }}
+                        className="rounded-full border border-glass-border bg-glass/60 px-3 py-1.5 text-xs text-ink-muted hover:text-ink hover:border-accent transition-colors cursor-pointer"
+                        title="Ambil otomatis subtitle Bahasa Indonesia (.id.srt) & English (.en.srt) untuk film ini"
+                      >
+                        💬 Subtitle ID/EN
+                      </button>
+                    )}
 
                     {/* Unduh via WebTorrent browser / local */}
                     <button
                       onClick={() => {
                         if (isLocal) {
                           void startLocalDownload(h.magnet, 'torrent', 'Torrents')
+                          push(`Memulai unduhan torrent & auto-subtitle: ${h.title}`, 'info')
                         }
                         start(h.magnet)
                       }}
-                      className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)]"
+                      className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)] cursor-pointer"
                     >
                       {isLocal ? 'Unduh (aria2c)' : 'Unduh di Web'}
                     </button>

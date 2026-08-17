@@ -385,3 +385,40 @@ export async function getFullAudioStream(query: string, sourceUrl?: string): Pro
   }
   return null
 }
+
+export interface MovieSubtitleItem {
+  language: string
+  lang_code: string
+  title: string
+  zip_url: string
+}
+
+export async function searchMovieSubtitles(title: string, year: string = ''): Promise<{ imdb_id: string | null; subtitles: MovieSubtitleItem[] }> {
+  try {
+    const res = await fetch(
+      `${getBackendBaseUrl()}/api/subtitles/search?title=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}`,
+    )
+    if (res.ok) {
+      return res.json()
+    }
+  } catch {
+    /* ignore */
+  }
+  return { imdb_id: null, subtitles: [] }
+}
+
+export async function autoDownloadSubtitles(title: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `${getBackendBaseUrl()}/api/subtitles/auto-download?title=${encodeURIComponent(title)}`,
+      { method: 'POST' },
+    )
+    if (res.ok) {
+      const d = await res.json()
+      return d.saved_files || []
+    }
+  } catch {
+    /* ignore */
+  }
+  return []
+}

@@ -233,6 +233,111 @@ def embed_flac_metadata(file_path: Path, title: str, artist: str, album: str, co
         print(f"Warning: mutagen FLAC embed error: {e}")
 
 
+# ============================================================================
+# AUTOMATIC MOVIE SUBTITLE FETCHER (YTS-Subs & IMDb Suggest)
+# ============================================================================
+def clean_movie_title_and_year(raw_name: str) -> tuple[str, str]:
+    cleaned = re.sub(r'\[.*?\]|\(.*?\)', '', raw_name)
+    year_match = re.search(r'\b(19\d\d|20\d\d)\b', raw_name)
+    year = year_match.group(1) if year_match else ""
+    cleaned = re.split(r'\b(19\d\d|20\d\d|1080p|720p|2160p|4k|bluray|bdrip|webrip|web-dl|x264|x265|hevc|yify|yts|aac|dts)\b', cleaned, flags=re.IGNORECASE)[0]
+    cleaned = cleaned.replace(".", " ").replace("_", " ").strip()
+    return cleaned, year
+
+
+def find_movie_imdb_id(title: str, year: str = "") -> Optional[str]:
+    slug = re.sub(r'[^a-zA-Z0-9]', '_', title.lower())
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    try:
+        r = requests.get(f"https://v3.sg.media-imdb.com/suggestion/x/{slug}.json", headers=headers, timeout=5)
+        if r.status_code == 200:
+            d = r.json()
+            for item in d.get("d", []):
+                if item.get("id", "").startswith("tt"):
+                    return item.get("id")
+    except Exception:
+        pass
+    return None
+
+
+def fetch_movie_subtitles(imdb_id: str, languages=("indonesian", "english")) -> list[dict]:
+    import base64
+    from bs4 import BeautifulSoup
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    subtitles = []
+    try:
+        r = requests.get(f"https://yts-subs.com/movie-imdb/{imdb_id}", headers=headers, timeout=8)
+        if r.status_code != 200:
+            return []
+
+        soup = BeautifulSoup(r.text, "html.parser")
+        for row in soup.find_all("tr"):
+            lang_td = row.find("span", class_="sub-lang")
+            if not lang_td:
+                continue
+            lang_text = lang_td.get_text(strip=True).lower()
+            matched_lang = next((l for l in languages if l in lang_text), None)
+            if not matched_lang:
+                continue
+
+            a_tag = row.find("a", href=True)
+            if not a_tag:
+                continue
+
+            sub_url = a_tag["href"]
+            sub_page = f"https://yts-subs.com{sub_url}" if not sub_url.startswith("http") else sub_url
+
+            sub_resp = requests.get(sub_page, headers=headers, timeout=6)
+            if sub_resp.status_code == 200:
+                sub_soup = BeautifulSoup(sub_resp.text, "html.parser")
+                dl_tag = sub_soup.find("a", class_="download-subtitle")
+                if dl_tag and dl_tag.get("data-link"):
+                    direct_zip = base64.b64decode(dl_tag.get("data-link")).decode("utf-8")
+                    subtitles.append({
+                        "language": "Indonesian" if "indo" in lang_text else "English",
+                        "lang_code": "id" if "indo" in lang_text else "en",
+                        "title": a_tag.get_text(strip=True),
+                        "zip_url": direct_zip,
+                    })
+                    if len([s for s in subtitles if s["lang_code"] == ("id" if "indo" in lang_text else "en")]) >= 2:
+                        continue
+    except Exception:
+        pass
+    return subtitles
+
+
+def auto_save_movie_subtitles(raw_title: str, target_dir: Path, base_filename: str = "") -> list[str]:
+    import zipfile, io
+    clean_title, year = clean_movie_title_and_year(raw_title)
+    imdb_id = find_movie_imdb_id(clean_title, year)
+    if not imdb_id:
+        return []
+
+    subs = fetch_movie_subtitles(imdb_id)
+    saved = []
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    for sub in subs:
+        lang_code = sub["lang_code"]
+        target_name = f"{base_filename or clean_title}.{lang_code}.srt"
+        target_path = target_dir / target_name
+        if target_path.exists():
+            continue
+        try:
+            zr = requests.get(sub["zip_url"], headers=headers, timeout=8)
+            if zr.status_code == 200:
+                z = zipfile.ZipFile(io.BytesIO(zr.content))
+                for fname in z.namelist():
+                    if fname.endswith(".srt"):
+                        srt_bytes = z.read(fname)
+                        target_path.write_bytes(srt_bytes)
+                        saved.append(str(target_path.name))
+                        break
+        except Exception:
+            pass
+    return saved
+
+
 def parse_time_to_seconds(t_str: Optional[str]) -> Optional[float]:
     """Konversi waktu format '01:30' atau '01:15:30' atau '90' ke detik."""
     if not t_str:
@@ -449,6 +554,12 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
                     *cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
                 )
                 await proc.communicate()
+                # Auto-fetch Subtitle Indonesia & English untuk film torrent
+                try:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, auto_save_movie_subtitles, req.title or url, target_dir)
+                except Exception:
+                    pass
                 active_jobs[job_id]["status"] = "done"
                 active_jobs[job_id]["progress"] = 100
                 await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
@@ -1045,6 +1156,29 @@ async def search_torrent(q: str):
 
     hits.sort(key=lambda x: x.get("seeders", 0), reverse=True)
     return {"query": query, "results": hits}
+
+
+# ============================================================================
+# MOVIE SUBTITLE API ENDPOINTS
+# ============================================================================
+@app.get("/api/subtitles/search")
+async def search_movie_subtitles_endpoint(title: str, year: str = ""):
+    clean_title, y = clean_movie_title_and_year(title)
+    imdb_id = find_movie_imdb_id(clean_title, year or y)
+    if not imdb_id:
+        return {"query": title, "clean_title": clean_title, "year": year or y, "imdb_id": None, "subtitles": []}
+
+    loop = asyncio.get_event_loop()
+    subs = await loop.run_in_executor(None, fetch_movie_subtitles, imdb_id)
+    return {"query": title, "clean_title": clean_title, "year": year or y, "imdb_id": imdb_id, "subtitles": subs}
+
+
+@app.post("/api/subtitles/auto-download")
+async def auto_download_movie_subtitles_endpoint(title: str):
+    target_dir = DOWNLOAD_DIR / "Torrents"
+    loop = asyncio.get_event_loop()
+    saved = await loop.run_in_executor(None, auto_save_movie_subtitles, title, target_dir)
+    return {"status": "ok", "title": title, "saved_files": saved}
 
 
 # ============================================================================
