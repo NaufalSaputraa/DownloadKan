@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { LocalVideoItem, LocalMusicItem } from '../lib/api-local'
 import { startLocalDownload } from '../lib/api-local'
 import { useToast } from '../hooks/useToast'
@@ -13,13 +13,30 @@ export interface UnifiedResultsProps {
 }
 
 type FilterType = 'all' | 'video' | 'music'
+type AudioFormat = 'flac' | 'mp3' | 'm4a' | 'wav' | 'opus'
+
+const MUSIC_PER_PAGE = 16
+const VIDEO_PER_PAGE = 8
+
+const AUDIO_FORMAT_OPTIONS: Array<{ id: AudioFormat; label: string; desc: string; badge: string }> = [
+  { id: 'flac', label: 'FLAC Lossless', desc: 'Master 24-bit Studio Quality', badge: 'Terbaik' },
+  { id: 'mp3', label: 'MP3 320k', desc: 'Ultra High Quality MP3', badge: 'Universal' },
+  { id: 'm4a', label: 'M4A / AAC', desc: 'Apple Music 256 kbps', badge: 'iOS/Mac' },
+  { id: 'wav', label: 'WAV 16-bit', desc: 'Uncompressed Studio Audio', badge: 'Raw' },
+  { id: 'opus', label: 'OPUS 160k', desc: 'Modern High Efficiency Codec', badge: 'Stream' },
+]
 
 export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPlayTrack }: UnifiedResultsProps) {
   const [filter, setFilter] = useState<FilterType>('all')
+  const [musicPage, setMusicPage] = useState(1)
+  const [videoPage, setVideoPage] = useState(1)
+  const [selectedFormats, setSelectedFormats] = useState<Record<string, AudioFormat>>({})
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null)
   const { push } = useToast()
 
-  const handleDownloadMusic = async (track: LocalMusicItem, format: 'mp3' | 'flac' = 'flac') => {
+  const handleDownloadMusic = async (track: LocalMusicItem, forcedFormat?: AudioFormat) => {
+    const format = forcedFormat || selectedFormats[track.id] || 'flac'
     try {
       setDownloadingId(track.id)
       await startLocalDownload({
@@ -31,7 +48,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
         album: track.album,
         artwork: track.artwork,
       })
-      push(`Memulai unduhan full song: ${track.artist} - ${track.title}`, 'info')
+      push(`Memulai unduhan (${format.toUpperCase()}): ${track.artist} - ${track.title}`, 'info')
     } catch (e) {
       push(`Gagal mengunduh musik: ${(e as Error).message}`, 'error')
     } finally {
@@ -69,8 +86,14 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
   const showVideos = (filter === 'all' || filter === 'video') && videos.length > 0
   const showMusics = (filter === 'all' || filter === 'music') && musics.length > 0
 
+  const totalMusicPages = Math.ceil(musics.length / MUSIC_PER_PAGE) || 1
+  const totalVideoPages = Math.ceil(videos.length / VIDEO_PER_PAGE) || 1
+
+  const paginatedMusics = musics.slice((musicPage - 1) * MUSIC_PER_PAGE, musicPage * MUSIC_PER_PAGE)
+  const paginatedVideos = videos.slice((videoPage - 1) * VIDEO_PER_PAGE, videoPage * VIDEO_PER_PAGE)
+
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-5">
       {/* Header & Filter Pills */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -84,7 +107,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
         <div className="flex items-center gap-1.5 rounded-full bg-glass p-1 border border-glass-border">
           <button
             onClick={() => setFilter('all')}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
               filter === 'all' ? 'bg-glass-2 text-ink font-semibold' : 'text-ink-muted hover:text-ink'
             }`}
           >
@@ -92,7 +115,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
           </button>
           <button
             onClick={() => setFilter('video')}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
               filter === 'video' ? 'bg-glass-2 text-ink font-semibold' : 'text-ink-muted hover:text-ink'
             }`}
           >
@@ -100,7 +123,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
           </button>
           <button
             onClick={() => setFilter('music')}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
               filter === 'music' ? 'bg-glass-2 text-ink font-semibold' : 'text-ink-muted hover:text-ink'
             }`}
           >
@@ -112,16 +135,24 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
       {/* SECTION: MUSIK FULL SONG */}
       {showMusics && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold uppercase tracking-wider text-accent">🎵 Musik Lossless & Full Song</span>
-            <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 font-mono text-[10px] text-emerald-400">
-              100% Full Track + Cover Art HD
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold uppercase tracking-wider text-accent">🎵 Musik Lossless & Full Song</span>
+              <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 font-mono text-[10px] text-emerald-400">
+                100% Full Track + Cover Art HD
+              </span>
+            </div>
+            <span className="font-mono text-[11px] text-ink-muted">
+              Hal {musicPage} dari {totalMusicPages} ({musics.length} lagu)
             </span>
           </div>
 
+          {/* Music Cards Grid */}
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {musics.map((track) => {
+            {paginatedMusics.map((track) => {
               const isDownloading = downloadingId === track.id
+              const currentFormat = selectedFormats[track.id] || 'flac'
+              const isExpanded = expandedTrackId === track.id
 
               return (
                 <motion.div
@@ -133,7 +164,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
                 >
                   <div className="flex items-start gap-3">
                     {/* Artwork */}
-                    <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-glass-2">
+                    <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-glass-2 border border-glass-border">
                       {track.artwork ? (
                         <img
                           src={track.artwork}
@@ -149,11 +180,11 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
                       {track.preview && (
                         <button
                           onClick={() => onPlayTrack?.(track)}
-                          className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-90 hover:opacity-100 transition-opacity"
+                          className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
                           title="Putar lagu & lirik karaoke"
                         >
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M8 5v14l11-7z" />
+                            <polygon points="5 3 19 12 5 21 5 3" />
                           </svg>
                         </button>
                       )}
@@ -167,51 +198,151 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
                       <p className="truncate font-mono text-xs text-ink-muted" title={track.artist}>
                         {track.artist}
                       </p>
-                      <p className="truncate font-mono text-[11px] text-ink-faint/70" title={track.album}>
-                        {track.album || 'Single'} {track.duration_str ? `· ${track.duration_str}` : ''}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="truncate font-mono text-[11px] text-ink-faint" title={track.album}>
+                          {track.album || 'Single'} {track.duration_str ? `· ${track.duration_str}` : ''}
+                        </span>
+                        <span className="inline-flex items-center px-1.5 py-0.2 rounded font-mono text-[9px] bg-accent/15 text-accent border border-accent/25 uppercase">
+                          {currentFormat.toUpperCase()}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="mt-3 flex items-center gap-2 pt-2 border-t border-glass-border">
+                  {/* Expandable Format Options Drawer */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-2.5 pt-2.5 border-t border-glass-border/60 flex flex-col gap-1.5 overflow-hidden"
+                      >
+                        <span className="font-mono text-[10px] text-ink-muted uppercase tracking-wider">
+                          Pilih Format Unduhan Audio:
+                        </span>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {AUDIO_FORMAT_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedFormats((prev) => ({ ...prev, [track.id]: opt.id }))
+                                setExpandedTrackId(null)
+                              }}
+                              className={`p-1.5 rounded-lg text-left border text-xs transition-all cursor-pointer flex items-center justify-between ${
+                                currentFormat === opt.id
+                                  ? 'bg-accent/20 border-accent text-ink font-semibold'
+                                  : 'bg-glass/40 border-glass-border hover:bg-glass text-ink-muted hover:text-ink'
+                              }`}
+                            >
+                              <div className="truncate">
+                                <p className="font-mono text-[11px] leading-none">{opt.label}</p>
+                                <p className="font-mono text-[9px] opacity-70 mt-0.5">{opt.desc}</p>
+                              </div>
+                              <span className="font-mono text-[8px] px-1 py-0.2 rounded bg-glass text-accent border border-glass-border flex-shrink-0 ml-1">
+                                {opt.badge}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Actions Bar */}
+                  <div className="mt-2.5 flex items-center gap-2 pt-2 border-t border-glass-border">
+                    {/* Primary Download Button */}
                     <button
-                      onClick={() => handleDownloadMusic(track, 'flac')}
+                      onClick={() => handleDownloadMusic(track)}
                       disabled={isDownloading}
                       className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-medium text-paper hover:opacity-95 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
                       </svg>
-                      {isDownloading ? 'Mengunduh...' : 'Unduh Musik'}
+                      {isDownloading ? 'Mengunduh...' : `Unduh ${currentFormat.toUpperCase()}`}
                     </button>
 
+                    {/* Format Switcher Toggle */}
                     <button
-                      onClick={() => handleDownloadMusic(track, 'mp3')}
-                      disabled={isDownloading}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-glass-border bg-glass px-2.5 py-1.5 text-[11px] font-mono text-ink-muted hover:text-ink hover:bg-glass-2 transition-colors cursor-pointer"
-                      title="Unduh MP3 320k (Kompatibilitas Standar)"
+                      type="button"
+                      onClick={() => setExpandedTrackId(isExpanded ? null : track.id)}
+                      className={`inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 py-1.5 text-[11px] font-mono transition-colors cursor-pointer ${
+                        isExpanded
+                          ? 'bg-accent/20 border-accent text-accent'
+                          : 'border-glass-border bg-glass text-ink-muted hover:text-ink hover:bg-glass-2'
+                      }`}
+                      title="Ubah Format Audio (FLAC, MP3, M4A, WAV, OPUS)"
                     >
-                      MP3 320k
+                      <span>Format</span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={isExpanded ? 'rotate-180 transition-transform' : 'transition-transform'}>
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
                     </button>
                   </div>
                 </motion.div>
               )
             })}
           </div>
+
+          {/* Music Pagination Bar */}
+          {totalMusicPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-3">
+              <button
+                type="button"
+                onClick={() => setMusicPage((p) => Math.max(1, p - 1))}
+                disabled={musicPage === 1}
+                className="px-3 py-1.5 rounded-lg border border-glass-border bg-glass text-xs font-mono text-ink-muted hover:text-ink disabled:opacity-30 cursor-pointer"
+              >
+                ← Sebelumnya
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalMusicPages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    type="button"
+                    onClick={() => setMusicPage(pg)}
+                    className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+                      musicPage === pg
+                        ? 'bg-accent text-paper font-semibold'
+                        : 'bg-glass/40 hover:bg-glass text-ink-muted hover:text-ink border border-glass-border'
+                    }`}
+                  >
+                    {pg}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMusicPage((p) => Math.min(totalMusicPages, p + 1))}
+                disabled={musicPage === totalMusicPages}
+                className="px-3 py-1.5 rounded-lg border border-glass-border bg-glass text-xs font-mono text-ink-muted hover:text-ink disabled:opacity-30 cursor-pointer"
+              >
+                Berikutnya →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* SECTION: YOUTUBE VIDEO */}
       {showVideos && (
         <div className="space-y-3 pt-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold uppercase tracking-wider text-rose-400">🎬 Video YouTube</span>
-            <span className="font-mono text-xs text-ink-muted">Resolusi hingga 1080p / 4K</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold uppercase tracking-wider text-rose-400">🎬 Video YouTube</span>
+              <span className="font-mono text-xs text-ink-muted">Resolusi hingga 1080p / 4K</span>
+            </div>
+            <span className="font-mono text-[11px] text-ink-muted">
+              Hal {videoPage} dari {totalVideoPages} ({videos.length} video)
+            </span>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {videos.map((vid) => {
+            {paginatedVideos.map((vid) => {
               const isDownloading = downloadingId === vid.id
 
               return (
@@ -233,60 +364,91 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
                       />
                     )}
                     {vid.duration_str && (
-                      <span className="absolute bottom-2 right-2 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[10px] text-white">
+                      <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 font-mono text-[10px] text-white">
                         {vid.duration_str}
                       </span>
                     )}
                   </div>
 
-                  {/* Body Info */}
-                  <div className="p-3 space-y-1">
-                    <h4 className="line-clamp-2 font-medium text-ink text-sm leading-snug" title={vid.title}>
-                      {vid.title}
-                    </h4>
-                    <p className="truncate font-mono text-xs text-ink-muted">
-                      {vid.channel || 'YouTube'}
-                    </p>
-                  </div>
+                  {/* Video Details */}
+                  <div className="p-3 flex flex-col justify-between flex-1">
+                    <div>
+                      <h4 className="font-medium text-ink text-sm line-clamp-2" title={vid.title}>
+                        {vid.title}
+                      </h4>
+                      <p className="mt-1 font-mono text-xs text-ink-muted truncate">
+                        {vid.channel || 'YouTube'}
+                      </p>
+                    </div>
 
-                  {/* Action Buttons */}
-                  <div className="p-3 pt-0 flex items-center gap-2">
-                    <button
-                      onClick={() => handleDownloadVideo(vid, 'video')}
-                      disabled={isDownloading}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-ink px-3 py-1.5 text-xs font-medium text-paper hover:bg-[oklch(86%_0.008_260)] transition-colors disabled:opacity-50"
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                      </svg>
-                      {isDownloading ? 'Memproses...' : 'Unduh Video'}
-                    </button>
-
-                    <button
-                      onClick={() => handleDownloadVideo(vid, 'audio')}
-                      disabled={isDownloading}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-glass-border bg-glass px-3 py-1.5 text-xs text-ink hover:bg-glass-2 transition-colors"
-                      title="Ekstrak Audio MP3"
-                    >
-                      Audio
-                    </button>
-
-                    {onSelectUrl && (
+                    {/* Actions */}
+                    <div className="mt-3 flex items-center gap-2 pt-2 border-t border-glass-border">
                       <button
-                        onClick={() => onSelectUrl(vid.url)}
-                        className="rounded-xl border border-glass-border bg-glass p-1.5 text-ink-muted hover:text-ink hover:bg-glass-2 transition-colors"
-                        title="Analisis detail resolusi"
+                        onClick={() => onSelectUrl?.(vid.url)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-accent px-3 py-1.5 text-xs font-medium text-paper hover:opacity-95 transition-all shadow-sm cursor-pointer"
+                        title="Analisis opsi resolusi 4K/1080p, pemotong durasi, & subtitle"
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M5 12h14M12 5l7 7-7 7" />
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="11" cy="11" r="8" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
                         </svg>
+                        Pilih Resolusi (4K/HD)
                       </button>
-                    )}
+
+                      <button
+                        onClick={() => handleDownloadVideo(vid, 'audio')}
+                        disabled={isDownloading}
+                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-glass-border bg-glass px-2.5 py-1.5 text-xs font-mono text-ink-muted hover:text-ink hover:bg-glass-2 transition-colors disabled:opacity-50 cursor-pointer"
+                        title="Unduh Audio Langsung"
+                      >
+                        Audio
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               )
             })}
           </div>
+
+          {/* Video Pagination Bar */}
+          {totalVideoPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-3">
+              <button
+                type="button"
+                onClick={() => setVideoPage((p) => Math.max(1, p - 1))}
+                disabled={videoPage === 1}
+                className="px-3 py-1.5 rounded-lg border border-glass-border bg-glass text-xs font-mono text-ink-muted hover:text-ink disabled:opacity-30 cursor-pointer"
+              >
+                ← Sebelumnya
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalVideoPages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    type="button"
+                    onClick={() => setVideoPage(pg)}
+                    className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+                      videoPage === pg
+                        ? 'bg-accent text-paper font-semibold'
+                        : 'bg-glass/40 hover:bg-glass text-ink-muted hover:text-ink border border-glass-border'
+                    }`}
+                  >
+                    {pg}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setVideoPage((p) => Math.min(totalVideoPages, p + 1))}
+                disabled={videoPage === totalVideoPages}
+                className="px-3 py-1.5 rounded-lg border border-glass-border bg-glass text-xs font-mono text-ink-muted hover:text-ink disabled:opacity-30 cursor-pointer"
+              >
+                Berikutnya →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
