@@ -260,7 +260,28 @@ def find_movie_imdb_id(title: str, year: str = "") -> Optional[str]:
     return None
 
 
-def fetch_movie_subtitles(imdb_id: str, languages=("indonesian", "english")) -> list[dict]:
+LANG_CODE_MAP = {
+    "indonesian": "id", "bahasa": "id",
+    "english": "en",
+    "japanese": "ja",
+    "korean": "ko",
+    "arabic": "ar",
+    "spanish": "es",
+    "french": "fr",
+    "german": "de",
+    "italian": "it",
+    "portuguese": "pt",
+    "russian": "ru",
+    "chinese": "zh",
+    "turkish": "tr",
+    "thai": "th",
+    "vietnamese": "vi",
+    "dutch": "nl",
+    "hindi": "hi",
+}
+
+
+def fetch_movie_subtitles(imdb_id: str, languages: Optional[list[str]] = None) -> list[dict]:
     import base64
     from bs4 import BeautifulSoup
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -275,9 +296,10 @@ def fetch_movie_subtitles(imdb_id: str, languages=("indonesian", "english")) -> 
             lang_td = row.find("span", class_="sub-lang")
             if not lang_td:
                 continue
-            lang_text = lang_td.get_text(strip=True).lower()
-            matched_lang = next((l for l in languages if l in lang_text), None)
-            if not matched_lang:
+            lang_text = lang_td.get_text(strip=True).strip()
+            lang_lower = lang_text.lower()
+
+            if languages and not any(l.lower() in lang_lower for l in languages):
                 continue
 
             a_tag = row.find("a", href=True)
@@ -287,54 +309,79 @@ def fetch_movie_subtitles(imdb_id: str, languages=("indonesian", "english")) -> 
             sub_url = a_tag["href"]
             sub_page = f"https://yts-subs.com{sub_url}" if not sub_url.startswith("http") else sub_url
 
-            sub_resp = requests.get(sub_page, headers=headers, timeout=6)
-            if sub_resp.status_code == 200:
-                sub_soup = BeautifulSoup(sub_resp.text, "html.parser")
-                dl_tag = sub_soup.find("a", class_="download-subtitle")
-                if dl_tag and dl_tag.get("data-link"):
-                    direct_zip = base64.b64decode(dl_tag.get("data-link")).decode("utf-8")
-                    subtitles.append({
-                        "language": "Indonesian" if "indo" in lang_text else "English",
-                        "lang_code": "id" if "indo" in lang_text else "en",
-                        "title": a_tag.get_text(strip=True),
-                        "zip_url": direct_zip,
-                    })
-                    if len([s for s in subtitles if s["lang_code"] == ("id" if "indo" in lang_text else "en")]) >= 2:
-                        continue
+            # Rating
+            rating_span = row.find("span", class_="label")
+            rating = rating_span.get_text(strip=True) if rating_span else "0"
+
+            # Determine lang_code
+            code = "en"
+            for k, v in LANG_CODE_MAP.items():
+                if k in lang_lower:
+                    code = v
+                    break
+
+            subtitles.append({
+                "language": lang_text,
+                "lang_code": code,
+                "title": a_tag.get_text(strip=True),
+                "rating": rating,
+                "sub_page": sub_page,
+            })
     except Exception:
         pass
     return subtitles
 
 
+def download_single_subtitle_to_disk(sub_page: str, lang_code: str, movie_title: str, target_dir: Path) -> Optional[str]:
+    import base64, zipfile, io
+    from bs4 import BeautifulSoup
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    try:
+        sub_resp = requests.get(sub_page, headers=headers, timeout=6)
+        if sub_resp.status_code != 200:
+            return None
+        
+        sub_soup = BeautifulSoup(sub_resp.text, "html.parser")
+        dl_tag = sub_soup.find("a", class_="download-subtitle")
+        if not dl_tag or not dl_tag.get("data-link"):
+            return None
+        
+        direct_zip = base64.b64decode(dl_tag.get("data-link")).decode("utf-8")
+        zr = requests.get(direct_zip, headers=headers, timeout=8)
+        if zr.status_code == 200:
+            z = zipfile.ZipFile(io.BytesIO(zr.content))
+            clean_name, _ = clean_movie_title_and_year(movie_title)
+            target_name = f"{clean_name}.{lang_code}.srt"
+            target_path = target_dir / target_name
+            for fname in z.namelist():
+                if fname.endswith(".srt"):
+                    srt_bytes = z.read(fname)
+                    target_path.write_bytes(srt_bytes)
+                    return str(target_name)
+    except Exception:
+        pass
+    return None
+
+
 def auto_save_movie_subtitles(raw_title: str, target_dir: Path, base_filename: str = "") -> list[str]:
-    import zipfile, io
     clean_title, year = clean_movie_title_and_year(raw_title)
     imdb_id = find_movie_imdb_id(clean_title, year)
     if not imdb_id:
         return []
 
-    subs = fetch_movie_subtitles(imdb_id)
+    subs = fetch_movie_subtitles(imdb_id, languages=["indonesian", "english"])
     saved = []
-    headers = {"User-Agent": "Mozilla/5.0"}
 
     for sub in subs:
         lang_code = sub["lang_code"]
         target_name = f"{base_filename or clean_title}.{lang_code}.srt"
-        target_path = target_dir / target_name
-        if target_path.exists():
+        if (target_dir / target_name).exists():
             continue
-        try:
-            zr = requests.get(sub["zip_url"], headers=headers, timeout=8)
-            if zr.status_code == 200:
-                z = zipfile.ZipFile(io.BytesIO(zr.content))
-                for fname in z.namelist():
-                    if fname.endswith(".srt"):
-                        srt_bytes = z.read(fname)
-                        target_path.write_bytes(srt_bytes)
-                        saved.append(str(target_path.name))
-                        break
-        except Exception:
-            pass
+        res = download_single_subtitle_to_disk(sub["sub_page"], lang_code, base_filename or clean_title, target_dir)
+        if res:
+            saved.append(res)
+            if len([s for s in saved if s.endswith(f".{lang_code}.srt")]) >= 1:
+                pass
     return saved
 
 
@@ -1179,6 +1226,24 @@ async def auto_download_movie_subtitles_endpoint(title: str):
     loop = asyncio.get_event_loop()
     saved = await loop.run_in_executor(None, auto_save_movie_subtitles, title, target_dir)
     return {"status": "ok", "title": title, "saved_files": saved}
+
+
+class SubtitleSingleDownloadRequest(BaseModel):
+    sub_page: str
+    lang_code: str
+    movie_title: str
+
+
+@app.post("/api/subtitles/download-single")
+async def download_single_sub_endpoint(req: SubtitleSingleDownloadRequest):
+    target_dir = DOWNLOAD_DIR / "Torrents"
+    loop = asyncio.get_event_loop()
+    saved_file = await loop.run_in_executor(
+        None, download_single_subtitle_to_disk, req.sub_page, req.lang_code, req.movie_title, target_dir
+    )
+    if saved_file:
+        return {"status": "ok", "saved_file": saved_file}
+    raise HTTPException(status_code=500, detail="Gagal mengunduh file subtitle pilihan.")
 
 
 # ============================================================================

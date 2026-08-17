@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTorrent, type ActiveTorrent } from '../hooks/useTorrent'
 import { useLocalBackend } from '../hooks/useLocalBackend'
 import { searchTorrentsFromApi } from '../engines/torrent/search'
-import { searchLocalTorrent, autoDownloadSubtitles } from '../lib/api-local'
+import { searchLocalTorrent } from '../lib/api-local'
+import { TorrentSubtitleModal } from './TorrentSubtitleModal'
 import { useToast } from '../hooks/useToast'
 import type { TorrentHit } from '../engines/torrent/sources'
 import { formatEta, formatSpeed } from '../utils/format'
@@ -18,6 +19,7 @@ export function TorrentPanel() {
   const [hits, setHits] = useState<TorrentHit[]>([])
   const [searchMsg, setSearchMsg] = useState<string | null>(null)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [subtitleMovie, setSubtitleMovie] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const doSearch = useCallback(async () => {
@@ -170,26 +172,14 @@ export function TorrentPanel() {
                       {copiedIndex === i ? 'Tersalin ✓' : 'Salin Magnet'}
                     </button>
 
-                    {/* Ambil Subtitle Otomatis */}
+                    {/* Pilih Subtitle Multibahasa */}
                     {isLocal && (
                       <button
-                        onClick={async () => {
-                          try {
-                            push(`Mencari subtitle Indonesia & English untuk "${h.title}"...`, 'info')
-                            const files = await autoDownloadSubtitles(h.title)
-                            if (files.length > 0) {
-                              push(`Berhasil mengunduh ${files.length} subtitle: ${files.join(', ')}`, 'success')
-                            } else {
-                              push(`Subtitle untuk film ini belum ditemukan di basis data.`, 'info')
-                            }
-                          } catch {
-                            push(`Gagal mengambil subtitle.`, 'error')
-                          }
-                        }}
-                        className="rounded-full border border-glass-border bg-glass/60 px-3 py-1.5 text-xs text-ink-muted hover:text-ink hover:border-accent transition-colors cursor-pointer"
-                        title="Ambil otomatis subtitle Bahasa Indonesia (.id.srt) & English (.en.srt) untuk film ini"
+                        onClick={() => setSubtitleMovie(h.title)}
+                        className="rounded-full border border-glass-border bg-glass/60 px-3.5 py-1.5 text-xs text-ink-muted hover:text-ink hover:border-accent transition-colors cursor-pointer inline-flex items-center gap-1"
+                        title="Buka panel pilihan subtitle multibahasa untuk film ini"
                       >
-                        💬 Subtitle ID/EN
+                        💬 Pilih Subtitle
                       </button>
                     )}
 
@@ -213,6 +203,13 @@ export function TorrentPanel() {
           </ul>
         </section>
       )}
+
+      {/* Modal Pilihan Subtitle Multibahasa */}
+      <TorrentSubtitleModal
+        open={Boolean(subtitleMovie)}
+        movieTitle={subtitleMovie || ''}
+        onClose={() => setSubtitleMovie(null)}
+      />
 
       {/* Progress unduhan aktif */}
       {active.length > 0 && (

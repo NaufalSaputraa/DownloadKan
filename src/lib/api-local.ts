@@ -390,10 +390,12 @@ export interface MovieSubtitleItem {
   language: string
   lang_code: string
   title: string
-  zip_url: string
+  rating?: string
+  sub_page?: string
+  zip_url?: string
 }
 
-export async function searchMovieSubtitles(title: string, year: string = ''): Promise<{ imdb_id: string | null; subtitles: MovieSubtitleItem[] }> {
+export async function searchMovieSubtitles(title: string, year: string = ''): Promise<{ imdb_id: string | null; clean_title?: string; year?: string; subtitles: MovieSubtitleItem[] }> {
   try {
     const res = await fetch(
       `${getBackendBaseUrl()}/api/subtitles/search?title=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}`,
@@ -421,4 +423,25 @@ export async function autoDownloadSubtitles(title: string): Promise<string[]> {
     /* ignore */
   }
   return []
+}
+
+export async function downloadSingleSubtitle(subPage: string, langCode: string, movieTitle: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${getBackendBaseUrl()}/api/subtitles/download-single`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sub_page: subPage,
+        lang_code: langCode,
+        movie_title: movieTitle,
+      }),
+    })
+    if (res.ok) {
+      const d = await res.json()
+      return d.saved_file || null
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
 }
