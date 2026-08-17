@@ -577,18 +577,40 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
 
                 active_jobs[job_id]["progress"] = pct
                 active_jobs[job_id]["speed"] = speed_str
-                active_jobs[job_id]["eta"] = eta_str
-                asyncio.run(manager.broadcast({"type": "job_update", "job": active_jobs[job_id]}))
+        fmt_low = (req.format or "best").lower()
+        if fmt_low == "2160p" or "4k" in fmt_low or "2160" in fmt_low:
+            selected_fmt = "bestvideo[height<=2160]+bestaudio/best[height<=2160]/best"
+        elif fmt_low == "1440p" or "2k" in fmt_low or "1440" in fmt_low:
+            selected_fmt = "bestvideo[height<=1440]+bestaudio/best[height<=1440]/best"
+        elif fmt_low == "1080p" or "full hd" in fmt_low or "1080" in fmt_low:
+            selected_fmt = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+        elif fmt_low == "720p" or "720" in fmt_low:
+            selected_fmt = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+        elif fmt_low == "480p" or "480" in fmt_low:
+            selected_fmt = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
+        elif fmt_low == "360p" or "360" in fmt_low:
+            selected_fmt = "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
+        elif req.format and req.format not in ["best", "video"]:
+            selected_fmt = req.format
+        else:
+            selected_fmt = "bestvideo+bestaudio/best"
 
         ydl_opts = {
             "outtmpl": str(target_dir / "%(title)s.%(ext)s"),
             "progress_hooks": [ytdl_progress_hook],
             "quiet": True,
             "no_warnings": True,
-            "format": "bestvideo+bestaudio/best",
+            "format": selected_fmt,
+            "merge_output_format": "mp4",
+            "postprocessors": [
+                {
+                    "key": "FFmpegVideoConvertor",
+                    "preferedformat": "mp4",
+                }
+            ],
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["android", "ios", "web"]
+                    "player_client": ["web", "default"]
                 }
             },
         }

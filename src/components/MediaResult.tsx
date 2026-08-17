@@ -155,10 +155,22 @@ export function MediaResult({ result }: { result: MediaResult }) {
     // Jika berjalan di standalone local core, kirim ke backend lokal
     if (isLocal) {
       try {
-        const isAudio = /mp3|audio|flac|music/i.test(item.type)
+        const isAudio = /mp3|audio|flac|music|sound/i.test(item.type)
+        let resolvedFormat = 'best'
+        const t = item.type.toLowerCase()
+        if (t.includes('4k') || t.includes('2160')) resolvedFormat = '2160p'
+        else if (t.includes('2k') || t.includes('1440')) resolvedFormat = '1440p'
+        else if (t.includes('1080') || t.includes('full hd')) resolvedFormat = '1080p'
+        else if (t.includes('720') || t.includes('hd')) resolvedFormat = '720p'
+        else if (t.includes('480')) resolvedFormat = '480p'
+        else if (t.includes('360')) resolvedFormat = '360p'
+        else if (t.includes('flac') || t.includes('lossless')) resolvedFormat = 'flac'
+        else if (t.includes('mp3') || t.includes('audio')) resolvedFormat = 'mp3'
+        else if (item.format_id) resolvedFormat = item.format_id
+
         await startLocalDownload(
           result.sourceUrl,
-          isAudio ? (item.type.includes('flac') ? 'flac' : 'mp3') : 'best',
+          resolvedFormat,
           isAudio ? 'Music' : 'Videos',
           filename,
           {

@@ -148,7 +148,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
           </div>
 
           {/* Music Cards Grid */}
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 items-start">
             {paginatedMusics.map((track) => {
               const isDownloading = downloadingId === track.id
               const currentFormat = selectedFormats[track.id] || 'flac'
@@ -341,7 +341,7 @@ export function UnifiedSearchResults({ query, videos, musics, onSelectUrl, onPla
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 items-start">
             {paginatedVideos.map((vid) => {
               const isDownloading = downloadingId === vid.id
 

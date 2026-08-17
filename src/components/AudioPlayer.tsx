@@ -79,19 +79,46 @@ export function AudioPlayer({ currentTrack, onClose }: AudioPlayerProps) {
 
   // Play audio otomatis saat track baru dimuat
   useEffect(() => {
-    if (audioRef.current && currentTrack) {
-      audioRef.current.src = currentTrack.src
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false))
+    if (!currentTrack || !audioRef.current) return
+    const audio = audioRef.current
+    if (!currentTrack.src) {
+      setIsPlaying(false)
+      return
+    }
+
+    audio.pause()
+    audio.currentTime = 0
+    audio.volume = 1.0
+    audio.src = currentTrack.src
+    audio.load()
+
+    const playPromise = audio.play()
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.warn('Audio play notice:', err)
+          setIsPlaying(false)
+        })
     }
   }, [currentTrack])
 
   const togglePlay = () => {
     if (!audioRef.current) return
+    const audio = audioRef.current
     if (isPlaying) {
-      audioRef.current.pause()
+      audio.pause()
       setIsPlaying(false)
     } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {})
+      audio.volume = 1.0
+      const playPromise = audio.play()
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn('Play error:', err)
+          })
+      }
     }
   }
 
@@ -122,9 +149,17 @@ export function AudioPlayer({ currentTrack, onClose }: AudioPlayerProps) {
     <>
       <audio
         ref={audioRef}
+        preload="auto"
+        crossOrigin="anonymous"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
+        onError={(e) => {
+          console.warn('Audio tag playback error:', e)
+          setIsPlaying(false)
+        }}
       />
 
       <AnimatePresence>
