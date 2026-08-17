@@ -814,29 +814,69 @@ def run_batch_downloader(source: str, format_choice: str = "best", output_dir: O
                 if clean and not clean.startswith("#"):
                     urls.append(clean)
     else:
-        # URL Playlist / Album
+        # URL Playlist / Album (Apple Music, Spotify, YouTube Music, YouTube)
         console.print(f"\n[cyan]📋 Menganalisis playlist / album URL:[/cyan] [bold]{source}[/bold]")
-        with console.status("[bold green]Mengekstrak daftar lagu playlist...[/bold green]", spinner="dots"):
-            try:
-                import yt_dlp
-                with yt_dlp.YoutubeDL({"extract_flat": True, "quiet": True}) as ydl:
-                    info = ydl.extract_info(source, download=False)
-                    if info:
-                        p_title = sanitize_filename(info.get("title") or "Playlist")
-                        p_uploader = sanitize_filename(info.get("uploader") or info.get("channel") or "")
-                        if p_uploader and p_uploader.lower() not in p_title.lower():
-                            playlist_folder_name = f"{p_uploader} - {p_title}"
-                        else:
-                            playlist_folder_name = p_title
+        with console.status("[bold green]Mengekstrak daftar lagu playlist / album lintas platform...[/bold green]", spinner="dots"):
+            # 1. Apple Music Album / Playlist
+            if "music.apple.com" in source:
+                try:
+                    match_id = re.search(r"/(?:album|playlist)/[^/]+/(\d+)", source) or re.search(r"/(\d+)(?:\?|$)", source)
+                    if match_id:
+                        album_id = match_id.group(1)
+                        r = requests.get(f"https://itunes.apple.com/lookup?id={album_id}&entity=song&country=ID", timeout=6).json()
+                        res = r.get("results", [])
+                        if res:
+                            alb = res[0]
+                            p_artist = sanitize_filename(alb.get("artistName", "Artist"))
+                            p_title = sanitize_filename(alb.get("collectionName", "Album"))
+                            playlist_folder_name = f"{p_artist} - {p_title}"
+                            for t in res[1:]:
+                                t_name = t.get("trackName")
+                                if t_name:
+                                    urls.append(f"{p_artist} {t_name} Official Audio")
+                except Exception as e:
+                    console.print(f"[dim yellow]Notice Apple Music extract: {e}[/dim yellow]")
 
-                        if "entries" in info:
-                            for entry in info["entries"]:
-                                if entry:
-                                    v_url = entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
-                                    urls.append(v_url)
-            except Exception as e:
-                console.print(f"[bold red]❌ Gagal mengekstrak playlist:[/bold red] {e}")
-                return
+            # 2. Spotify Album / Playlist
+            if not urls and "spotify.com" in source:
+                try:
+                    r = requests.get(f"https://open.spotify.com/oembed?url={urllib.parse.quote(source)}", timeout=5).json()
+                    if r.get("title"):
+                        playlist_folder_name = sanitize_filename(r.get("title", "Spotify_Playlist"))
+                    # Scraping Embed Tracks
+                    embed_url = source.replace("open.spotify.com/", "open.spotify.com/embed/")
+                    resp = requests.get(embed_url, timeout=5, headers={"User-Agent": "Mozilla/5.0"}).text
+                    # Match track titles
+                    matches = re.findall(r'"name":"([^"]+)"', resp)
+                    if matches:
+                        clean_matches = [m for m in matches if len(m) > 1 and m not in ["Spotify", "Music"]][:50]
+                        for cm in set(clean_matches):
+                            urls.append(f"{cm} Audio")
+                except Exception as e:
+                    console.print(f"[dim yellow]Notice Spotify extract: {e}[/dim yellow]")
+
+            # 3. YouTube Music & Universal via yt-dlp
+            if not urls:
+                try:
+                    import yt_dlp
+                    with yt_dlp.YoutubeDL({"extract_flat": True, "quiet": True}) as ydl:
+                        info = ydl.extract_info(source, download=False)
+                        if info:
+                            p_title = sanitize_filename(info.get("title") or "Playlist")
+                            p_uploader = sanitize_filename(info.get("uploader") or info.get("channel") or "")
+                            if p_uploader and p_uploader.lower() not in p_title.lower():
+                                playlist_folder_name = f"{p_uploader} - {p_title}"
+                            else:
+                                playlist_folder_name = p_title
+
+                            if "entries" in info:
+                                for entry in info["entries"]:
+                                    if entry:
+                                        v_url = entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                                        urls.append(v_url)
+                except Exception as e:
+                    console.print(f"[bold red]❌ Gagal mengekstrak playlist:[/bold red] {e}")
+                    return
 
     if not urls:
         console.print("[bold red]❌ Tidak ada URL yang ditemukan untuk diunduh.[/bold red]")
