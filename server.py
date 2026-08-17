@@ -562,13 +562,18 @@ class BatchDownloadRequest(BaseModel):
     items: List[BatchDownloadItem]
     format: str = "mp3"  # mp3, flac, video
     category: str = "Music"
+    playlist_name: Optional[str] = None
 
 @app.post("/api/download/batch")
 async def start_batch_download(req: BatchDownloadRequest):
     if not req.items:
         raise HTTPException(status_code=400, detail="Daftar item batch tidak boleh kosong.")
 
-    target_dir = DOWNLOAD_DIR / req.category
+    base_dir = DOWNLOAD_DIR / req.category
+    if req.playlist_name:
+        target_dir = base_dir / sanitize_clean_name(req.playlist_name)
+    else:
+        target_dir = base_dir
     target_dir.mkdir(parents=True, exist_ok=True)
     queued_jobs = []
 

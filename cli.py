@@ -796,14 +796,17 @@ def search_and_download_music(query: str, format_choice: str = "flac", output_di
 
 
 # ============================================================================
-# BATCH & PLAYLIST DOWNLOADER
+# BATCH & PLAYLIST DOWNLOADER (Dedicated Subfolder Per Playlist/Album)
 # ============================================================================
 def run_batch_downloader(source: str, format_choice: str = "best", output_dir: Optional[str] = None):
-    """Unduh kumpulan link dari file text atau URL playlist."""
+    """Unduh kumpulan link dari file text atau URL playlist ke dalam subfolder khusus."""
     urls = []
     source_path = Path(source)
+    playlist_folder_name = "Batch_Queue"
+    dirs = get_download_dirs()
 
     if source_path.exists() and source_path.is_file():
+        playlist_folder_name = sanitize_filename(source_path.stem)
         console.print(f"\n[cyan]📋 Membaca daftar URL dari file:[/cyan] [bold]{source_path}[/bold]")
         with open(source_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -811,34 +814,67 @@ def run_batch_downloader(source: str, format_choice: str = "best", output_dir: O
                 if clean and not clean.startswith("#"):
                     urls.append(clean)
     else:
-        # Mungkin URL playlist
-        console.print(f"\n[cyan]📋 Menganalisis playlist URL:[/cyan] [bold]{source}[/bold]")
-        try:
-            import yt_dlp
-            with yt_dlp.YoutubeDL({"extract_flat": True, "quiet": True}) as ydl:
-                info = ydl.extract_info(source, download=False)
-                if info and "entries" in info:
-                    for entry in info["entries"]:
-                        if entry:
-                            v_url = entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
-                            urls.append(v_url)
-        except Exception as e:
-            console.print(f"[bold red]❌ Gagal mengekstrak playlist:[/bold red] {e}")
-            return
+        # URL Playlist / Album
+        console.print(f"\n[cyan]📋 Menganalisis playlist / album URL:[/cyan] [bold]{source}[/bold]")
+        with console.status("[bold green]Mengekstrak daftar lagu playlist...[/bold green]", spinner="dots"):
+            try:
+                import yt_dlp
+                with yt_dlp.YoutubeDL({"extract_flat": True, "quiet": True}) as ydl:
+                    info = ydl.extract_info(source, download=False)
+                    if info:
+                        p_title = sanitize_filename(info.get("title") or "Playlist")
+                        p_uploader = sanitize_filename(info.get("uploader") or info.get("channel") or "")
+                        if p_uploader and p_uploader.lower() not in p_title.lower():
+                            playlist_folder_name = f"{p_uploader} - {p_title}"
+                        else:
+                            playlist_folder_name = p_title
+
+                        if "entries" in info:
+                            for entry in info["entries"]:
+                                if entry:
+                                    v_url = entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                                    urls.append(v_url)
+            except Exception as e:
+                console.print(f"[bold red]❌ Gagal mengekstrak playlist:[/bold red] {e}")
+                return
 
     if not urls:
         console.print("[bold red]❌ Tidak ada URL yang ditemukan untuk diunduh.[/bold red]")
         return
 
-    console.print(f"[bold green]Ditemukan {len(urls)} item dalam antrean.[/bold green]\n")
-    dirs = get_download_dirs()
-    target_dir = Path(output_dir) if output_dir else dirs["batch"]
+    # Folder Khusus Sesuai Nama Playlist / Album
+    base_target = Path(output_dir) if output_dir else (dirs["music"] if format_choice.lower() in ["flac", "mp3"] else dirs["batch"])
+    target_dir = base_target / playlist_folder_name
+    target_dir.mkdir(parents=True, exist_ok=True)
 
+    console.print(Panel(
+        f"📁 [bold cyan]Folder Tujuan:[/bold cyan] [bold white]{target_dir}[/bold white]\n"
+        f"📊 [bold yellow]Total Item   :[/bold yellow] [bold green]{len(urls)} lagu/media[/bold green]\n"
+        f"🎵 [bold magenta]Format Pilihan:[/bold magenta] [white]{format_choice.upper()}[/white]",
+        title="[bold green]Antrean Unduhan Playlist / Album[/bold green]",
+        border_style="green"
+    ))
+
+    downloaded_files = []
     for i, u in enumerate(urls, 1):
-        console.print(f"\n[bold yellow]━━━ [ Item {i}/{len(urls)} ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold yellow]")
+        console.print(f"\n[bold yellow]━━━ [ Track {i:02d}/{len(urls):02d} ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold yellow]")
         analyze_and_download_media(u, format_choice=format_choice, output_dir=str(target_dir))
 
-    console.print(f"\n[bold green]🎉 Seluruh antrean batch ({len(urls)} file) selesai diproses![/bold green]\n")
+    # Buat file Playlist .M3U otomatis di dalam folder
+    try:
+        m3u_file = target_dir / f"{playlist_folder_name}.m3u"
+        m3u_lines = ["#EXTM3U\n"]
+        for f in sorted(target_dir.glob("*.*")):
+            if f.suffix.lower() in [".flac", ".mp3", ".m4a", ".mp4", ".mkv", ".wav"] and not f.name.endswith(".m3u"):
+                m3u_lines.append(f"{f.name}\n")
+        if len(m3u_lines) > 1:
+            m3u_file.write_text("".join(m3u_lines), encoding="utf-8")
+            console.print(f"📑 [dim]Playlist file dibuat:[/dim] [cyan]{m3u_file.name}[/cyan]")
+    except Exception:
+        pass
+
+    console.print(f"\n[bold green]🎉 Seluruh playlist ({len(urls)} item) sukses tersimpan di folder:[/bold green]")
+    console.print(f"👉 [bold cyan]{target_dir}[/bold cyan]\n")
 
 
 # ============================================================================
