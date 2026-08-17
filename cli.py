@@ -983,6 +983,45 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
 
 
 # ============================================================================
+# AUTO-UPDATER & ENGINE SYNC
+# ============================================================================
+def run_updater():
+    """Perbarui seluruh dependensi inti, engine scraper, dan script DownloadKan."""
+    console.print(Panel("[bold cyan]🔄 PEMBARUAN SISTEM & ENGINE SCRAPER[/bold cyan]", border_style="cyan"))
+
+    steps = [
+        ("yt-dlp (YouTube & Universal Scraper)", [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"]),
+        ("streamrip (Lossless FLAC Scraper)", [sys.executable, "-m", "pip", "install", "--upgrade", "streamrip"]),
+        ("Mutagen & Rich UI Core", [sys.executable, "-m", "pip", "install", "--upgrade", "mutagen", "rich", "requests"]),
+    ]
+
+    for name, cmd in steps:
+        with console.status(f"[bold green]Memperbarui {name}...[/bold green]", spinner="dots"):
+            try:
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                if proc.returncode == 0:
+                    console.print(f"  [bold green]✓[/bold green] {name}: [green]Berhasil diperbarui / Terkini[/green]")
+                else:
+                    console.print(f"  [yellow]![/yellow] {name}: [dim]{proc.stderr.strip()[:100]}[/dim]")
+            except Exception as e:
+                console.print(f"  [bold red]✗[/bold red] {name}: {e}")
+
+    # Cek Pembaruan Git Repository Jika Ada
+    if Path(".git").exists() and shutil.which("git"):
+        with console.status("[bold green]Memeriksa update kode DownloadKan dari GitHub...[/bold green]", spinner="dots"):
+            try:
+                proc = subprocess.run(["git", "pull", "origin", "main"], capture_output=True, text=True, timeout=15)
+                if "Already up to date" in proc.stdout:
+                    console.print("  [bold green]✓[/bold green] Source Code: [green]Sudah menggunakan versi terbaru di GitHub[/green]")
+                else:
+                    console.print(f"  [bold green]✓[/bold green] Source Code: [green]Berhasil diupdate dari GitHub[/green]\n[dim]{proc.stdout[:150]}[/dim]")
+            except Exception as e:
+                console.print(f"  [dim yellow]Git check notice: {e}[/dim yellow]")
+
+    console.print("\n[bold green]🎉 Seluruh engine dan dependensi siap digunakan![/bold green]\n")
+
+
+# ============================================================================
 # INTERACTIVE RICH TUI DASHBOARD
 # ============================================================================
 def interactive_menu():
@@ -1003,13 +1042,14 @@ def interactive_menu():
         console.print("  [bold cyan]1.[/bold cyan] 📥 [bold]Unduh / Analisis URL Media[/bold] [dim](YouTube, TikTok, IG, FB, X, dll)[/dim]")
         console.print("  [bold magenta]2.[/bold magenta] 🧲 [bold]Cari & Unduh Torrent[/bold] [dim](The Pirate Bay, Nyaa, YTS)[/dim]")
         console.print("  [bold green]3.[/bold green] 🎵 [bold]Cari & Unduh Musik Hi-Res[/bold] [dim](FLAC 24-bit / MP3 320kbps)[/dim]")
-        console.print("  [bold yellow]4.[/bold yellow] 📋 [bold]Batch / Playlist Downloader[/bold] [dim](Daftar .txt atau YouTube Playlist)[/dim]")
+        console.print("  [bold yellow]4.[/bold yellow] 📋 [bold]Batch / Playlist Downloader[/bold] [dim](Spotify, Apple Music, YouTube)[/dim]")
         console.print("  [bold blue]5.[/bold blue] 🌐 [bold]Jalankan Web UI Server[/bold] [dim](FastAPI Core + Browser)[/dim]")
         console.print("  [bold red]6.[/bold red] 🩺 [bold]Diagnosa Sistem & Dependensi[/bold] [dim](Doctor Check)[/dim]")
         console.print("  [bold white]7.[/bold white] ⚙️  [bold]Pengaturan & Konfigurasi[/bold]")
+        console.print("  [bold green]8.[/bold green] 🔄 [bold]Perbarui Engine & Dependensi[/bold] [dim](Auto-Updater)[/dim]")
         console.print("  [dim]0.[/dim] 🚪 Keluar\n")
 
-        choice = Prompt.ask("[bold yellow]Pilihan Anda[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "0"], default="1")
+        choice = Prompt.ask("[bold yellow]Pilihan Anda[/bold yellow]", choices=["1", "2", "3", "4", "5", "6", "7", "8", "0"], default="1")
 
         if choice == "1":
             console.print("\n[bold cyan]━━━ [ 📥 Unduh / Analisis URL Media ] ━━━━━━━━━━━━━━━━━[/bold cyan]")
@@ -1050,6 +1090,10 @@ def interactive_menu():
 
         elif choice == "7":
             configure_settings()
+            Prompt.ask("\n[dim]Tekan Enter untuk kembali ke menu...[/dim]")
+
+        elif choice == "8":
+            run_updater()
             Prompt.ask("\n[dim]Tekan Enter untuk kembali ke menu...[/dim]")
 
         elif choice == "0":
@@ -1094,12 +1138,15 @@ def main():
     # 5. doctor
     subparsers.add_parser("doctor", help="Diagnosa ketersediaan dependensi sistem (ffmpeg, aria2, yt-dlp)")
 
-    # 6. server
+    # 6. update
+    subparsers.add_parser("update", help="Perbarui engine scraper (yt-dlp, streamrip, mutagen) dan kode ke versi terbaru")
+
+    # 7. server
     p_srv = subparsers.add_parser("server", help="Jalankan FastAPI Local Core dan buka Web UI di browser")
     p_srv.add_argument("--host", default="127.0.0.1", help="Host binding (default: 127.0.0.1)")
     p_srv.add_argument("--port", type=int, default=8000, help="Port server (default: 8000)")
 
-    # 7. config
+    # 8. config
     subparsers.add_parser("config", help="Lihat atau ubah konfigurasi DownloadKan")
 
     # Fallback to direct download if first arg is an URL or magnet
@@ -1135,6 +1182,8 @@ def main():
         run_batch_downloader(args.source, format_choice=args.format, output_dir=args.output)
     elif args.subcommand == "doctor":
         run_doctor()
+    elif args.subcommand == "update":
+        run_updater()
     elif args.subcommand == "server":
         run_server(host=args.host, port=args.port)
     elif args.subcommand == "config":
