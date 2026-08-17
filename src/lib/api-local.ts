@@ -368,3 +368,20 @@ export async function updateEngineCore(): Promise<EngineUpdateResponse> {
   }
   return res.json()
 }
+
+export async function getFullAudioStream(query: string, sourceUrl?: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams()
+    if (sourceUrl) params.append('url', sourceUrl)
+    else if (query) params.append('q', query)
+
+    const res = await fetch(`${getBackendBaseUrl()}/api/stream?${params.toString()}`)
+    if (res.ok) {
+      const data = await res.json()
+      return data.stream_url || null
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}

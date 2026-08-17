@@ -56,6 +56,7 @@ export function LyricsSheet({
   onClose,
 }: LyricsSheetProps) {
   const [lyrics, setLyrics] = useState<LyricLine[]>([])
+  const [offset, setOffset] = useState<number>(0) // in seconds
   const activeLineRef = useRef<HTMLDivElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -65,12 +66,16 @@ export function LyricsSheet({
     } else {
       setLyrics([])
     }
+    setOffset(0)
   }, [lrcText])
 
-  // Cari baris lirik aktif berdasarkan currentTime
+  // Hitung waktu efektif dengan offset sinkronisasi
+  const effectiveTime = Math.max(0, currentTime + offset)
+
+  // Cari baris lirik aktif berdasarkan effectiveTime
   let activeIndex = -1
   for (let i = 0; i < lyrics.length; i++) {
-    if (currentTime >= lyrics[i].time) {
+    if (effectiveTime >= lyrics[i].time) {
       activeIndex = i
     } else {
       break
@@ -105,7 +110,7 @@ export function LyricsSheet({
           )}
 
           {/* Top Bar Header */}
-          <div className="relative z-10 flex items-center justify-between p-4 sm:p-6 border-b border-glass-border">
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 p-4 sm:p-6 border-b border-glass-border">
             <div className="flex items-center gap-3.5">
               {artwork ? (
                 <img
@@ -119,18 +124,52 @@ export function LyricsSheet({
                 </div>
               )}
               <div>
-                <h3 className="font-display font-semibold text-base sm:text-lg text-ink truncate max-w-[220px] sm:max-w-md">
+                <h3 className="font-display font-semibold text-base sm:text-lg text-ink truncate max-w-[180px] sm:max-w-md">
                   {title}
                 </h3>
-                <p className="font-mono text-xs text-ink-muted truncate max-w-[200px] sm:max-w-xs">
+                <p className="font-mono text-xs text-ink-muted truncate max-w-[160px] sm:max-w-xs">
                   {artist || 'Unknown Artist'}
                 </p>
               </div>
             </div>
 
+            {/* Sync Offset Calibration Controls */}
+            <div className="flex items-center gap-1.5 bg-glass-2 px-2.5 py-1 rounded-xl border border-glass-border">
+              <span className="font-mono text-[10px] text-ink-muted uppercase mr-1">Sinkron:</span>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => +(o - 0.5).toFixed(1))}
+                className="w-6 h-6 rounded bg-glass hover:bg-glass-2 text-ink text-xs font-mono border border-glass-border flex items-center justify-center cursor-pointer"
+                title="Lirik terlalu cepat (-0.5s)"
+              >
+                -
+              </button>
+              <span className="font-mono text-xs text-ink min-w-[36px] text-center font-medium">
+                {offset > 0 ? `+${offset}s` : `${offset}s`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => +(o + 0.5).toFixed(1))}
+                className="w-6 h-6 rounded bg-glass hover:bg-glass-2 text-ink text-xs font-mono border border-glass-border flex items-center justify-center cursor-pointer"
+                title="Lirik terlalu lambat (+0.5s)"
+              >
+                +
+              </button>
+              {offset !== 0 && (
+                <button
+                  type="button"
+                  onClick={() => setOffset(0)}
+                  className="text-[10px] font-mono text-accent hover:underline ml-1 cursor-pointer"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
+            {/* Close Button */}
             <button
               onClick={onClose}
-              className="rounded-full p-2.5 bg-glass-2 text-ink transition-colors hover:bg-glass border border-glass-border"
+              className="rounded-full p-2.5 bg-glass-2 text-ink transition-colors hover:bg-glass border border-glass-border cursor-pointer"
               aria-label="Tutup Lirik"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

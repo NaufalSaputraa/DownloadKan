@@ -943,6 +943,43 @@ async def search_music(q: str):
     return {"query": q, "results": res["musics"]}
 
 
+@app.get("/api/stream")
+async def stream_audio_endpoint(q: Optional[str] = None, url: Optional[str] = None):
+    """
+    Ekstrak URL direct stream audio lengkap (mulai dari 00:00) untuk sinkronisasi lirik sempurna.
+    """
+    target = url or (f"ytsearch1:{q}" if q else None)
+    if not target:
+        raise HTTPException(status_code=400, detail="Query atau URL wajib diisi.")
+
+    try:
+        import yt_dlp
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "format": "bestaudio/best",
+            "extract_flat": False,
+        }
+        loop = asyncio.get_event_loop()
+        def extract():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(target, download=False)
+                if "entries" in info and info["entries"]:
+                    info = info["entries"][0]
+                return {
+                    "stream_url": info.get("url"),
+                    "title": info.get("title"),
+                    "duration": info.get("duration"),
+                    "thumbnail": info.get("thumbnail"),
+                }
+        data = await loop.run_in_executor(None, extract)
+        if data.get("stream_url"):
+            return data
+        raise HTTPException(status_code=404, detail="Audio stream tidak ditemukan.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # MULTI-SOURCE TORRENT SEARCH (torlink Aggregator: TPB, Nyaa, YTS)
 # ============================================================================

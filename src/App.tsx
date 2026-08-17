@@ -13,6 +13,7 @@ import { useMedia } from './hooks/useMedia'
 import { useSettings } from './hooks/useSettings'
 import { useToast } from './hooks/useToast'
 import { useLocalBackend } from './hooks/useLocalBackend'
+import { getFullAudioStream } from './lib/api-local'
 
 type Tab = 'media' | 'torrent'
 
@@ -234,7 +235,8 @@ function App() {
                   videos={state.unifiedResults.videos}
                   musics={state.unifiedResults.musics}
                   onSelectUrl={(link) => handleSubmit(link)}
-                  onPlayTrack={(track) =>
+                  onPlayTrack={async (track) => {
+                    // Set preview awal agar player langsung tampil
                     setCurrentPlayingTrack({
                       title: track.title,
                       artist: track.artist,
@@ -243,7 +245,18 @@ function App() {
                       src: track.preview || '',
                       duration: track.duration,
                     })
-                  }
+
+                    // Ambil full-length audio stream mulai dari 00:00 untuk sinkronisasi lirik sempurna
+                    try {
+                      const fullStream = await getFullAudioStream(`${track.artist} - ${track.title}`)
+                      if (fullStream) {
+                        setCurrentPlayingTrack((prev) => {
+                          if (!prev || prev.title !== track.title) return prev
+                          return { ...prev, src: fullStream }
+                        })
+                      }
+                    } catch {}
+                  }}
                 />
               )}
               {state.status === 'idle' && <IdleHint />}
