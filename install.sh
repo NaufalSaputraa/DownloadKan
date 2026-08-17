@@ -68,14 +68,14 @@ else
 fi
 
 # 4. DEPENDENSI PYTHON (Aman di Termux & Desktop)
-echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, yt-dlp, mutagen)...${NC}"
+echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, yt-dlp, mutagen, rich)...${NC}"
 if [ "$IS_TERMUX" = true ]; then
     # Di Termux: JANGAN 'pip install -U pip' karena pip dikelola oleh paket python Termux
-    python3 -m pip install --no-cache-dir --break-system-packages fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || \
-    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || true
+    python3 -m pip install --no-cache-dir --break-system-packages fastapi "uvicorn[standard]" yt-dlp mutagen rich aiohttp websockets requests || \
+    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen rich aiohttp websockets requests || true
 else
     python3 -m pip install --upgrade pip || true
-    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || true
+    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen rich aiohttp websockets requests || true
 fi
 
 # 5. MEMBUAT EXECUTABLE GLOBAL (downloadkan)
@@ -110,9 +110,14 @@ fi
 echo -e "\n${GREEN}===============================================================${NC}"
 echo -e "${GREEN} 🎉 INSTALASI DOWNLOADKAN SELESAI & SIAP DIGUNAKAN!${NC}"
 echo -e "${GREEN}===============================================================${NC}"
-echo -e " 🚀 Cukup ketik perintah di terminal:\n"
-echo -e "     ${CYAN}downloadkan${NC}         -> Buka Web UI di browser HP/PC"
-echo -e "     ${CYAN}downloadkan <URL>${NC}   -> Unduh langsung lewat terminal\n"
+echo -e " 🚀 Contoh perintah di terminal:\n"
+echo -e "     ${CYAN}downloadkan${NC}               -> Masuk ke Dashboard Interaktif Rich TUI"
+echo -e "     ${CYAN}downloadkan get <URL>${NC}         -> Unduh video/audio langsung (YouTube, TikTok, dll)"
+echo -e "     ${CYAN}downloadkan torrent <query>${NC}   -> Cari & unduh torrent via terminal"
+echo -e "     ${CYAN}downloadkan music <query>${NC}     -> Cari musik & unduh Hi-Res FLAC/MP3"
+echo -e "     ${CYAN}downloadkan batch <file>${NC}      -> Unduh antrean URL dari file .txt"
+echo -e "     ${CYAN}downloadkan doctor${NC}            -> Cek status dependensi sistem"
+echo -e "     ${CYAN}downloadkan server${NC}            -> Jalankan server lokal & buka Web UI\n"
 
 if [ "$IS_TERMUX" = true ]; then
     echo -e " 📂 File unduhan otomatis tersimpan di folder ${CYAN}/sdcard/Download/DownloadKan/${NC}"

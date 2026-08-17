@@ -66,19 +66,31 @@ downloadkan
 
 ---
 
-## 💻 Penggunaan CLI
+## 💻 Penggunaan Terminal & Rich TUI
 
 ```bash
-# Buka Web UI di browser (mode standalone daemon)
+# 1. Masuk ke Dashboard Interaktif Rich TUI (Menu Berwarna & Navigasi)
 downloadkan
 
-# Atau unduh langsung instan lewat terminal
-downloadkan "https://www.tiktok.com/@user/video/123456"
-downloadkan "https://youtu.be/dQw4w9WgXcQ"
-downloadkan "magnet:?xt=urn:btih:..."
+# 2. Unduh video / audio langsung dengan opsi format
+downloadkan get "https://youtu.be/dQw4w9WgXcQ"
+downloadkan get "https://youtu.be/dQw4w9WgXcQ" -f 1080p
+downloadkan get "https://www.tiktok.com/@user/video/123456" -a
 
-# Bantuan perintah
-downloadkan --help
+# 3. Cari & unduh torrent langsung dari terminal (The Pirate Bay / Nyaa)
+downloadkan torrent "Ubuntu 24.04"
+
+# 4. Cari & unduh musik Hi-Res / Lossless FLAC / MP3
+downloadkan music "Taylor Swift Anti-Hero" -f flac
+
+# 5. Unduh kumpulan URL dari file .txt atau Playlist
+downloadkan batch my_links.txt
+
+# 6. Cek status dependensi sistem (yt-dlp, aria2c, ffmpeg, mutagen)
+downloadkan doctor
+
+# 7. Jalankan server lokal & buka Web UI browser
+downloadkan server
 ```
 
 ---

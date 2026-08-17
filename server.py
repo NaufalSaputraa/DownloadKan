@@ -422,10 +422,10 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
                 "progress_hooks": [ytdl_progress_hook],
                 "quiet": True,
                 "no_warnings": True,
-                "format": "ba/b/18",
+                "format": "bestaudio/best",
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["android", "web"]
+                        "player_client": ["android", "ios", "web"]
                     }
                 },
                 "postprocessors": [{
@@ -798,12 +798,12 @@ async def search_unified(q: str):
     # 2. Lossless Music Search (iTunes / Apple Music / Deezer)
     try:
         r = requests.get(
-            f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&media=music&limit=10",
-            timeout=4,
+            f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&media=music&country=ID&limit=15",
+            timeout=5,
         )
         if r.status_code == 200:
             for item in r.json().get("results", []):
-                artwork = item.get("artworkUrl100", "").replace("100x100bb", "600x600bb")
+                artwork = item.get("artworkUrl100", "").replace("100x100bb", "1200x1200bb")
                 dur_s = item.get("trackTimeMillis", 0) // 1000
                 musics.append({
                     "id": f"music_{item.get('trackId')}",
