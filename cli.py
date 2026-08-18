@@ -1111,9 +1111,44 @@ def check_server_health(h: str = "127.0.0.1", p: int = 8000) -> bool:
         return False
 
 
+def ensure_server_dependencies():
+    """Otomatis memeriksa dan memasang FastAPI/Uvicorn jika belum terpasang."""
+    missing = []
+    try:
+        import fastapi
+    except ImportError:
+        missing.append("fastapi")
+    try:
+        import uvicorn
+    except ImportError:
+        missing.append("uvicorn")
+
+    if missing:
+        console.print(f"[bold yellow]⚙️ Dependensi server ({', '.join(missing)}) belum terpasang.[/bold yellow]")
+        console.print("[bold cyan]🚀 Memasang dependensi secara otomatis... Mohon tunggu sebentar.[/bold cyan]")
+
+        pip_cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
+        is_termux = os.path.exists("/data/data/com.termux") or "TERMUX_VERSION" in os.environ
+
+        if is_termux:
+            # Di Termux: pasang pydantic v1 agar tidak compile rust/pydantic-core
+            subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--break-system-packages", "pydantic<2.0.0"], check=False)
+            pip_cmd.extend(["--break-system-packages"])
+        elif sys.platform.startswith("linux"):
+            pip_cmd.extend(["--break-system-packages"])
+
+        pip_cmd.extend(missing)
+        with console.status("[bold green]Mengunduh & memasang paket...[/bold green]", spinner="dots"):
+            subprocess.run(pip_cmd, check=False)
+        console.print("[bold green]✓ Dependensi server berhasil dipasang otomatis![/bold green]\n")
+
+
 def run_server(host: str = "127.0.0.1", port: int = 8000):
     """Jalankan local FastAPI server + buka browser otomatis."""
     console.print(BANNER)
+
+    # 0. Pastikan dependensi server terpasang otomatis
+    ensure_server_dependencies()
 
     # 1. Jika server DownloadKan sudah berjalan di port ini, buka browser langsung
     if check_server_health(host, port):
@@ -1153,8 +1188,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
         import server
         uvicorn.run(server.app, host=host, port=port, log_level="info")
     except ImportError as e:
-        console.print(f"[bold red]❌ Gagal memuat dependensi server: {e}[/bold red]")
-        console.print("[yellow]💡 Solusi: Jalankan 'pip install \"pydantic<2\" fastapi uvicorn'[/yellow]")
+        console.print(f"[bold red]❌ Gagal memuat server: {e}[/bold red]")
     except Exception as e:
         console.print(f"[bold red]❌ Terjadi kesalahan server: {e}[/bold red]")
 

@@ -24,7 +24,7 @@ function App() {
   const { state, analyze, reset } = useMedia()
   const { settings, update } = useSettings()
   const { toasts, push, dismiss } = useToast()
-  const { isLocal, jobs } = useLocalBackend()
+  const { isLocal, jobs, removeJob, clearFinishedJobs } = useLocalBackend()
 
   const handleSubmit = useCallback(
     (url: string) => {
@@ -60,33 +60,39 @@ function App() {
       {/* Nav — N5 floating pill */}
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <a href="/" className="group flex items-baseline gap-1" aria-label="DownloadKan — beranda">
-            <span className="font-display text-2xl tracking-tight text-ink">Download</span>
-            <span className="font-display text-2xl italic tracking-tight text-accent">Kan</span>
-          </a>
-          {isLocal && (
-            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 font-mono text-[10px] text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Local Core
-            </span>
-          )}
+          <span className="font-display text-2xl font-semibold tracking-tight text-ink">
+            Download<span className="text-ink-muted">Kan</span>
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-mono font-medium tracking-wide ${
+              isLocal
+                ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                : 'border border-glass-border bg-glass text-ink-muted'
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                isLocal ? 'bg-emerald-400 animate-pulse' : 'bg-ink-muted'
+              }`}
+            />
+            {isLocal ? 'Local Core' : 'Web Mode'}
+          </span>
         </div>
 
-        <nav className="glass flex items-center gap-1 rounded-full p-1">
-          <div className="relative flex items-center gap-1">
-            {(['media', 'torrent'] as Tab[]).map((t) => (
+        <nav aria-label="Navigasi Utama" className="flex items-center gap-2">
+          <div className="glass flex rounded-full p-1 border border-glass-border">
+            {(['media', 'torrent'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                aria-pressed={tab === t}
-                className="relative z-10 rounded-full px-4 py-1.5 text-sm transition-colors duration-200"
-                style={{ color: tab === t ? 'var(--color-ink)' : 'var(--color-ink-muted)' }}
+                className={`relative rounded-full px-4 py-1.5 text-xs font-medium capitalize transition-colors duration-200 ${
+                  tab === t ? 'text-ink' : 'text-ink-muted hover:text-ink'
+                }`}
               >
                 {tab === t && (
-                  <motion.span
-                    layoutId="tab-indicator"
-                    className="absolute inset-0 rounded-full bg-glass-2"
-                    style={{ zIndex: -1 }}
+                  <motion.div
+                    layoutId="active-tab"
+                    className="absolute inset-0 rounded-full bg-glass-2 border border-glass-border shadow-sm"
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
@@ -144,9 +150,24 @@ function App() {
                     Antrean Unduhan Lokal ({jobs.length})
                   </h3>
                 </div>
-                <span className="font-mono text-[10px] text-ink-muted">
-                  {jobs.some((j) => j.status === 'downloading') ? 'Sedang Memproses...' : 'Semua Selesai ✓'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-ink-muted">
+                    {jobs.some((j) => j.status === 'downloading') ? 'Sedang Memproses...' : 'Semua Selesai ✓'}
+                  </span>
+                  {jobs.some((j) => j.status === 'done' || j.status === 'failed') && (
+                    <button
+                      type="button"
+                      onClick={clearFinishedJobs}
+                      className="rounded-lg bg-glass-2 hover:bg-glass px-2.5 py-1 font-mono text-[10px] text-ink-muted hover:text-rose-400 border border-glass-border transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Bersihkan semua unduhan yang telah selesai"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                      <span>Hapus Selesai</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -161,7 +182,7 @@ function App() {
                     className="rounded-xl bg-glass-2 p-3 space-y-2 border border-glass-border"
                   >
                     <div className="flex items-center justify-between text-xs gap-2">
-                      <div className="flex items-center gap-2 truncate">
+                      <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                         {j.status === 'done' ? (
                           <span className="flex-shrink-0 text-emerald-400 font-bold">✓</span>
                         ) : j.status === 'failed' ? (
@@ -176,7 +197,7 @@ function App() {
                           {j.filename}
                         </span>
                       </div>
-                      <div className="flex-shrink-0 font-mono text-[11px] text-ink-muted flex items-center gap-1.5">
+                      <div className="flex-shrink-0 font-mono text-[11px] text-ink-muted flex items-center gap-2">
                         {j.status === 'done' ? (
                           <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-400 font-semibold">
                             Tersimpan (100%)
@@ -192,6 +213,17 @@ function App() {
                             <span className="font-semibold text-accent">({j.progress}%)</span>
                           </>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => removeJob(j.id)}
+                          className="rounded-md p-1 text-ink-faint hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                          title="Hapus dari antrean"
+                          aria-label="Hapus dari antrean"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
 

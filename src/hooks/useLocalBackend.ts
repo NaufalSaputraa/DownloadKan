@@ -52,6 +52,12 @@ export function useLocalBackend() {
             ...prev,
             [data.job.id]: data.job,
           }))
+        } else if (data.type === 'job_removed' && data.job_id) {
+          setJobs((prev) => {
+            const next = { ...prev }
+            delete next[data.job_id]
+            return next
+          })
         }
       } catch {
         /* noop */
@@ -62,6 +68,28 @@ export function useLocalBackend() {
       ws.close()
     }
   }, [isLocal])
+
+  const removeJob = useCallback((id: string) => {
+    setJobs((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    fetch(`http://127.0.0.1:8000/api/jobs/${id}`, { method: 'DELETE' }).catch(() => {})
+  }, [])
+
+  const clearFinishedJobs = useCallback(() => {
+    setJobs((prev) => {
+      const next: Record<string, DownloadJob> = {}
+      for (const [k, v] of Object.entries(prev)) {
+        if (v.status !== 'done' && v.status !== 'failed') {
+          next[k] = v
+        }
+      }
+      return next
+    })
+    fetch(`http://127.0.0.1:8000/api/jobs`, { method: 'DELETE' }).catch(() => {})
+  }, [])
 
   const download = useCallback(
     async (
@@ -94,6 +122,8 @@ export function useLocalBackend() {
     health,
     isLocal,
     jobs: Object.values(jobs),
+    removeJob,
+    clearFinishedJobs,
     download,
   }
 }

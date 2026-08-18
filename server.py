@@ -82,8 +82,22 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-    except Exception:
-        manager.disconnect(websocket)
+@app.delete("/api/jobs/{job_id}")
+async def delete_job(job_id: str):
+    if job_id in active_jobs:
+        del active_jobs[job_id]
+        await manager.broadcast({"type": "job_removed", "job_id": job_id})
+        return {"status": "ok", "deleted": job_id}
+    return {"status": "not_found"}
+
+
+@app.delete("/api/jobs")
+async def clear_all_jobs():
+    finished_keys = [k for k, v in active_jobs.items() if v.get("status") in ["done", "failed"]]
+    for k in finished_keys:
+        del active_jobs[k]
+    await manager.broadcast({"type": "initial_state", "jobs": active_jobs})
+    return {"status": "ok", "cleared_count": len(finished_keys)}
 
 
 # ============================================================================
