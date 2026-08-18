@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import json
+import time
 import shutil
 import asyncio
 import subprocess
@@ -821,7 +822,7 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
                                     spd = (downloaded / el) if el > 0 else 0
                                     active_jobs[job_id]["progress"] = pct
                                     active_jobs[job_id]["speed"] = f"{spd / 1024 / 1024:.1f} MB/s" if spd > 1024*1024 else f"{spd / 1024:.0f} KB/s"
-                                    asyncio.run(manager.broadcast({"type": "job_update", "job": active_jobs[job_id]}))
+                                    await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
 
                 active_jobs[job_id]["status"] = "done"
                 active_jobs[job_id]["progress"] = 100

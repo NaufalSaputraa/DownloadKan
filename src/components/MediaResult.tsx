@@ -169,7 +169,7 @@ export function MediaResult({ result }: { result: MediaResult }) {
         else if (item.format_id) resolvedFormat = item.format_id
 
         await startLocalDownload(
-          result.sourceUrl,
+          item.url || result.sourceUrl,
           resolvedFormat,
           isAudio ? 'Music' : 'Videos',
           filename,

@@ -1220,10 +1220,15 @@ def run_updater():
     """Perbarui seluruh dependensi inti, engine scraper, dan script DownloadKan."""
     console.print(Panel("[bold cyan]🔄 PEMBARUAN SISTEM & ENGINE SCRAPER[/bold cyan]", border_style="cyan"))
 
+    is_termux = "com.termux" in os.environ.get("PREFIX", "") or os.environ.get("TERMUX_VERSION") is not None
+    if is_termux:
+        core_upgrades = ["pydantic<2.0.0", "fastapi<0.100.0", "uvicorn", "mutagen", "rich", "requests", "beautifulsoup4"]
+    else:
+        core_upgrades = ["fastapi", "uvicorn", "mutagen", "rich", "requests", "beautifulsoup4"]
+
     steps = [
         ("yt-dlp (YouTube & Universal Scraper)", [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"]),
-        ("streamrip (Lossless FLAC Scraper)", [sys.executable, "-m", "pip", "install", "--upgrade", "streamrip"]),
-        ("Mutagen & Rich UI Core", [sys.executable, "-m", "pip", "install", "--upgrade", "mutagen", "rich", "requests"]),
+        ("Mutagen, Rich & Pure Python Core", [sys.executable, "-m", "pip", "install", "--upgrade"] + core_upgrades),
     ]
 
     for name, cmd in steps:
