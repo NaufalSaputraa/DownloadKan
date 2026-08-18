@@ -41,7 +41,7 @@ describe('storage library', () => {
         thumbnail: null,
         source: 'https://youtu.be/1',
         format: 'mp4',
-        engine: 'nezumi',
+        engine: 'standalone',
         status: 'done',
       })
       pushHistory({
@@ -51,7 +51,7 @@ describe('storage library', () => {
         thumbnail: null,
         source: 'https://youtu.be/2',
         format: 'mp4',
-        engine: 'nezumi',
+        engine: 'standalone',
         status: 'done',
       })
       pushHistory({
@@ -61,7 +61,7 @@ describe('storage library', () => {
         thumbnail: null,
         source: 'https://youtu.be/3',
         format: 'mp4',
-        engine: 'nezumi',
+        engine: 'standalone',
         status: 'done',
       })
 

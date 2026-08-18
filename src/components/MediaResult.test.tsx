@@ -14,7 +14,7 @@ describe('MediaResult component', () => {
       { type: 'Video HD (No Watermark)', url: 'https://cdn.example.com/video.mp4' },
       { type: 'Audio MP3 (HD)', url: 'https://cdn.example.com/audio.mp3' },
     ],
-    engine: 'Nezumi',
+    engine: 'yt-dlp',
   }
 
   beforeEach(() => {

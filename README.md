@@ -103,15 +103,31 @@
 
 ---
 
-## 🚀 Instalasi Cepat (Termux / Linux / macOS / Windows)
+## 🚀 Instalasi Cepat (1-Line Command)
 
-Cukup jalankan 1 baris perintah ini di terminal:
+Pilih perintah sesuai sistem operasi yang Anda gunakan:
 
+### 🪟 Windows (PowerShell)
+Buka **PowerShell** lalu jalankan:
+```powershell
+irm https://raw.githubusercontent.com/NaufalSaputraa/DownloadKan/main/install.ps1 | iex
+```
+
+### 📱 Android (Termux)
+Buka aplikasi **Termux** lalu jalankan:
 ```bash
 pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/NaufalSaputraa/DownloadKan/main/install.sh | bash
 ```
 
-Setelah selesai, jalankan:
+### 🐧 Linux / 🍎 macOS (Terminal)
+Buka **Terminal** lalu jalankan:
+```bash
+curl -fsSL https://raw.githubusercontent.com/NaufalSaputraa/DownloadKan/main/install.sh | bash
+```
+
+---
+
+Setelah instalasi selesai, cukup ketik:
 ```bash
 downloadkan
 ```
