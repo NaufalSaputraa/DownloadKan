@@ -1172,8 +1172,9 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
 
     # 1. Jika server DownloadKan sudah berjalan di port ini, buka browser langsung
     if check_server_health(host, port):
-        console.print(f"[bold green]✓ DownloadKan server sudah aktif di http://{host}:{port}[/bold green]")
+        console.print(f"[bold green]✓ DownloadKan server aktif di http://{host}:{port}[/bold green]")
         console.print(" [*] Membuka antarmuka Web UI di browser device...")
+        console.print(" [dim]Server sedang berjalan di latar belakang & siap menerima unduhan dari Web UI.[/dim]")
         url = f"http://{host}:{port}"
         if shutil.which("termux-open-url"):
             subprocess.run(["termux-open-url", url], check=False)
@@ -1318,7 +1319,7 @@ def interactive_menu():
 
         elif choice == "5":
             run_server()
-            break
+            Prompt.ask("\n[dim]Tekan Enter untuk kembali ke menu...[/dim]")
 
         elif choice == "6":
             run_doctor()
