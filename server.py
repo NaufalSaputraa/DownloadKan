@@ -972,6 +972,47 @@ async def extract_playlist(req: AnalyzeRequest):
 # ============================================================================
 # IN-APP MEDIA STREAMING (Audio & Video Range Streaming)
 # ============================================================================
+@app.get("/api/stream")
+async def get_audio_stream_url(q: Optional[str] = None, url: Optional[str] = None):
+    import yt_dlp
+    target = url if url else (f"ytsearch1:{q} audio" if q else None)
+    if not target:
+        raise HTTPException(status_code=400, detail="Parameter q atau url wajib diisi.")
+
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "quiet": True,
+        "no_warnings": True,
+        "extract_flat": False,
+        "skip_download": True,
+    }
+
+    loop = asyncio.get_event_loop()
+    def _extract():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(target, download=False)
+            if "entries" in info and len(info["entries"]) > 0:
+                info = info["entries"][0]
+            formats = info.get("formats", [])
+            audio_url = None
+            for f in formats:
+                if f.get("acodec") != "none" and f.get("vcodec") == "none" and f.get("url"):
+                    audio_url = f.get("url")
+            if not audio_url:
+                audio_url = info.get("url")
+            return {
+                "stream_url": audio_url,
+                "duration": info.get("duration"),
+                "title": info.get("title"),
+            }
+
+    try:
+        data = await loop.run_in_executor(None, _extract)
+        return data
+    except Exception as e:
+        return {"stream_url": None, "error": str(e)}
+
+
 @app.get("/api/stream/{category}/{filename}")
 async def stream_media(category: str, filename: str):
     file_path = DOWNLOAD_DIR / category / filename

@@ -77,6 +77,8 @@ export function AudioPlayer({ currentTrack, onClose }: AudioPlayerProps) {
     }
   }, [currentTrack])
 
+  const lastTitleRef = useRef<string | null>(null)
+
   // Play audio otomatis saat track baru dimuat
   useEffect(() => {
     if (!currentTrack || !audioRef.current) return
@@ -86,12 +88,20 @@ export function AudioPlayer({ currentTrack, onClose }: AudioPlayerProps) {
       return
     }
 
-    audio.pause()
-    audio.currentTime = 0
-    audio.volume = 1.0
-    audio.src = currentTrack.src
-    audio.load()
+    const trackKey = `${currentTrack.artist} - ${currentTrack.title}`
+    const isSameTrack = lastTitleRef.current === trackKey
+    const prevTime = isSameTrack ? audio.currentTime : 0
+    lastTitleRef.current = trackKey
 
+    if (audio.src !== currentTrack.src) {
+      audio.src = currentTrack.src
+      audio.load()
+      if (prevTime > 0) {
+        audio.currentTime = prevTime
+      }
+    }
+
+    audio.volume = 1.0
     const playPromise = audio.play()
     if (playPromise !== undefined) {
       playPromise
