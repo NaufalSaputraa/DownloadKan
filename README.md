@@ -80,8 +80,8 @@
 
 ## ⚡ Fitur Unggulan
 
-- **🎥 Video & Media Sosial (yt-dlp + Nezumi + Jerexd)**:
-  - Unduh dari 1000+ platform: TikTok (No Watermark), Instagram (Reels & Carousel), YouTube (hingga 4K/8K & MP3), X / Twitter, Facebook, Pixiv, Bandcamp, Threads, Bilibili.
+- **🎥 Video & Media Sosial (yt-dlp Core Standalone)**:
+  - Unduh dari 1000+ platform: TikTok (No Watermark), Instagram (Reels & Carousel), YouTube (hingga Full HD 1080p, 4K, 8K & MP3), X / Twitter, Facebook, Pixiv, Bandcamp, Threads, Bilibili.
   - **✂️ Video & Audio Time Trimmer**: Potong durasi tertentu via CLI (`--start MM:SS --end MM:SS`) atau Web UI tanpa membuang kuota.
   - **🎬 Auto-Subtitles (.SRT / Muxed)**: Unduh & embed subtitle otomatis (`--sub --sub-lang id,en`).
 - **🎵 Studio Hi-Res Lossless Music (streamrip + LRCLIB + Apple Music Metadata)**:

@@ -18,23 +18,21 @@ Ikuti protokol memori global (`~/.config/opencode/uteke-memory.md`):
 
 ## Gambaran Proyek
 
-Downloader web **statis 100% client-side** ($0 biaya server) **bernama UI: "DownloadKan"** yang menggabungkan:
-1. **Media downloader** (TikTok, Instagram, YouTube, X, Spotify, dll) via engine API publik:
-   - **Nezumi API** (engine utama — key gratis `NezumiApi`, CORS OK)
-   - **Jerexd API** (engine fallback — butuh API key user)
+Downloader universal **DownloadKan** yang menggabungkan:
+1. **Media & Music Downloader Standalone**:
+   - **yt-dlp Core Standalone**: Mendukung 1000+ platform video (YouTube Full HD/4K/8K, TikTok, Instagram, X, Facebook, Bilibili) dengan FFmpeg merging.
+   - **Studio FLAC Master Engine**: Mengunduh audio 24-bit Lossless + Embedded HD artwork + Mutagen tags + LRCLIB synced lyrics.
+   - **Dynamic Audio Streaming**: Endpoint `/api/stream` untuk streaming instan lagu utuh 100% tanpa batas.
 2. **Torrent**: 
-   - **Download** via **WebTorrent** langsung di browser user (paste magnet/infohash)
-   - **Search** via **Cloudflare Pages Function** (proxy CORS ke YTS/Nyaa/dll)
+   - **Download** via **aria2c multi-connection** (16 peer streams + 7 high-speed public trackers) atau **WebTorrent** di browser.
+   - **Auto-Subtitle**: Pengambilan subtitle multibahasa otomatis (.id.srt, .en.srt, dll) untuk film torrent.
+   - **Search**: Multi-indexer aggregator (TPB & Nyaa) dengan filtering dan sorting.
 
-## Prinsip Arsitektur (Sangat Penting)
+## Prinsip Arsitektur
 
-- **TANPA server/backend sendiri**: semua di browser user. Biaya $0.
-- **Engine registry + failover** (pola Mori): coba engine 1 → gagal → engine 2.
-- **CORS: engine media memblokir lintas-origin** (Nezumi & Jerexd). Semua panggilan analisis lewat
-  proxy `/api/proxy/{target}` — prod: CF Pages Function; dev: Vite dev-proxy (vite.config.ts).
-  File unduhan akhir tetap langsung dari CDN sumber.
-- **Jangan pernah hardcode secret/API key di source code** — user key disimpan di `localStorage`.
-- Semua unduhan torrent P2P (WebTorrent) **tidak melewati server kita**.
+- **Standalone Local Core + Web UI**: Berjalan langsung di perangkat user (Termux Android, Windows, Mac, Linux).
+- **Zero Server Cost**: Tidak bergantung pada API pihak ketiga yang mudah mati/berbayar/kena limit (Nezumi/Jerexd sudah tidak digunakan lagi).
+- **Semua proses unduhan & konversi media berlangsung lokal di perangkat user**.
 
 ## Teknologi
 
