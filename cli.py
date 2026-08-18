@@ -14,6 +14,7 @@ import argparse
 import subprocess
 import webbrowser
 import threading
+import socket
 import urllib.parse
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -1093,9 +1094,45 @@ def configure_settings():
 # ============================================================================
 # WEB SERVER LAUNCHER
 # ============================================================================
+def is_port_in_use(p: int, h: str = "127.0.0.1") -> bool:
+    """Cek apakah port sedang digunakan."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex((h, p)) == 0
+
+
+def check_server_health(h: str = "127.0.0.1", p: int = 8000) -> bool:
+    """Cek apakah server DownloadKan sudah aktif di port tersebut."""
+    try:
+        import requests
+        r = requests.get(f"http://{h}:{p}/api/health", timeout=1.0)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 def run_server(host: str = "127.0.0.1", port: int = 8000):
     """Jalankan local FastAPI server + buka browser otomatis."""
     console.print(BANNER)
+
+    # 1. Jika server DownloadKan sudah berjalan di port ini, buka browser langsung
+    if check_server_health(host, port):
+        console.print(f"[bold green]✓ DownloadKan server sudah aktif di http://{host}:{port}[/bold green]")
+        console.print(" [*] Membuka antarmuka Web UI di browser device...")
+        url = f"http://{host}:{port}"
+        if shutil.which("termux-open-url"):
+            subprocess.run(["termux-open-url", url], check=False)
+        else:
+            webbrowser.open(url)
+        return
+
+    # 2. Jika port 8000 terpakai oleh proses lain, cari port berikutnya (8001, 8002, ...)
+    current_port = port
+    while is_port_in_use(current_port, host) and current_port < port + 10:
+        current_port += 1
+
+    port = current_port
+
     console.print(f" [*] Menjalankan DownloadKan Standalone Core...")
     console.print(f" [*] Server lokal aktif di: [bold cyan]http://{host}:{port}[/bold cyan]")
     console.print(" [*] Membuka antarmuka Web UI di browser device...")
@@ -1113,9 +1150,13 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
 
     try:
         import uvicorn
-        uvicorn.run("server:app", host=host, port=port, log_level="info")
-    except ImportError:
-        console.print("[bold red]❌ Uvicorn belum terpasang. Jalankan: pip install uvicorn[/bold red]")
+        import server
+        uvicorn.run(server.app, host=host, port=port, log_level="info")
+    except ImportError as e:
+        console.print(f"[bold red]❌ Gagal memuat dependensi server: {e}[/bold red]")
+        console.print("[yellow]💡 Solusi: Jalankan 'pip install \"pydantic<2\" fastapi uvicorn'[/yellow]")
+    except Exception as e:
+        console.print(f"[bold red]❌ Terjadi kesalahan server: {e}[/bold red]")
 
 
 # ============================================================================

@@ -72,7 +72,8 @@ echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, uvicorn, yt-dlp, mutag
 CORE_PKGS="fastapi uvicorn yt-dlp mutagen rich aiohttp websockets requests beautifulsoup4"
 
 if [ "$IS_TERMUX" = true ]; then
-    # Di Termux: gunakan pure-python uvicorn (tanpa [standard] agar tidak butuh rust toolchain / maturin)
+    # Di Termux: pasang pydantic v1 (pure Python, tanpa rust / pydantic-core) lalu pasang dependensi
+    python3 -m pip install --no-cache-dir --break-system-packages "pydantic<2.0.0" || true
     python3 -m pip install --no-cache-dir --break-system-packages $CORE_PKGS || {
         echo -e "${YELLOW}Mencoba instalasi dependensi per paket...${NC}"
         for p in $CORE_PKGS; do
