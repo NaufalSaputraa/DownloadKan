@@ -69,6 +69,16 @@ class ConnectionManager:
             except Exception:
                 self.disconnect(connection)
 
+    def broadcast_sync(self, message: Dict[str, Any], loop=None):
+        if not self.active_connections:
+            return
+        try:
+            target_loop = loop or asyncio.get_event_loop()
+            if target_loop and target_loop.is_running():
+                asyncio.run_coroutine_threadsafe(self.broadcast(message), target_loop)
+        except Exception:
+            pass
+
 
 manager = ConnectionManager()
 active_jobs: Dict[str, Dict[str, Any]] = {}
@@ -835,6 +845,7 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
     if req.category == "Music" or req.format in ["mp3", "flac", "audio"]:
         try:
             import yt_dlp
+            main_loop = asyncio.get_event_loop()
 
             # Resolve query jika berupa teks judul/artis
             search_target = url
@@ -857,7 +868,7 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
                     active_jobs[job_id]["progress"] = pct
                     active_jobs[job_id]["speed"] = speed_str
                     active_jobs[job_id]["eta"] = eta_str
-                    asyncio.run(manager.broadcast({"type": "job_update", "job": active_jobs[job_id]}))
+                    manager.broadcast_sync({"type": "job_update", "job": active_jobs[job_id]}, loop=main_loop)
 
             is_flac = req.format == "flac"
             final_ext = "flac" if is_flac else "mp3"
@@ -935,6 +946,7 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
     # 3. VIDEO VIA yt-dlp
     try:
         import yt_dlp
+        main_loop = asyncio.get_event_loop()
 
         def ytdl_progress_hook(d):
             if d["status"] == "downloading":
@@ -949,6 +961,8 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
 
                 active_jobs[job_id]["progress"] = pct
                 active_jobs[job_id]["speed"] = speed_str
+                active_jobs[job_id]["eta"] = eta_str
+                manager.broadcast_sync({"type": "job_update", "job": active_jobs[job_id]}, loop=main_loop)
         fmt_low = (req.format or "best").lower()
         if fmt_low == "2160p" or "4k" in fmt_low or "2160" in fmt_low:
             selected_fmt = "bestvideo[height=2160]+bestaudio/bestvideo[height<=2160]+bestaudio/best[height<=2160]/best"
