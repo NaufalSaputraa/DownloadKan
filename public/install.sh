@@ -68,14 +68,24 @@ else
 fi
 
 # 4. DEPENDENSI PYTHON (Aman di Termux & Desktop)
-echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, yt-dlp, mutagen)...${NC}"
+echo -e "${YELLOW}[4/5] Memasang library Python (FastAPI, uvicorn, yt-dlp, mutagen, rich)...${NC}"
+CORE_PKGS="fastapi uvicorn yt-dlp mutagen rich aiohttp websockets requests beautifulsoup4"
+
 if [ "$IS_TERMUX" = true ]; then
-    # Di Termux: JANGAN 'pip install -U pip' karena pip dikelola oleh paket python Termux
-    python3 -m pip install --no-cache-dir --break-system-packages fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || \
-    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || true
+    # Di Termux: gunakan pure-python uvicorn (tanpa [standard] agar tidak butuh rust toolchain / maturin)
+    python3 -m pip install --no-cache-dir --break-system-packages $CORE_PKGS || {
+        echo -e "${YELLOW}Mencoba instalasi dependensi per paket...${NC}"
+        for p in $CORE_PKGS; do
+            python3 -m pip install --no-cache-dir --break-system-packages "$p" || true
+        done
+    }
 else
     python3 -m pip install --upgrade pip || true
-    python3 -m pip install --no-cache-dir fastapi "uvicorn[standard]" yt-dlp mutagen aiohttp websockets requests || true
+    python3 -m pip install --no-cache-dir $CORE_PKGS || {
+        for p in $CORE_PKGS; do
+            python3 -m pip install --no-cache-dir "$p" || true
+        done
+    }
 fi
 
 # 5. MEMBUAT EXECUTABLE GLOBAL (downloadkan)
