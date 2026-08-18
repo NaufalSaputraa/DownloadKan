@@ -1125,22 +1125,42 @@ def ensure_server_dependencies():
 
     if missing:
         console.print(f"[bold yellow]⚙️ Dependensi server ({', '.join(missing)}) belum terpasang.[/bold yellow]")
-        console.print("[bold cyan]🚀 Memasang dependensi secara otomatis... Mohon tunggu sebentar.[/bold cyan]")
+        console.print("[bold cyan]🚀 Memasang dependensi secara otomatis (Pure Python)... Mohon tunggu sebentar.[/bold cyan]")
 
-        pip_cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
         is_termux = os.path.exists("/data/data/com.termux") or "TERMUX_VERSION" in os.environ
 
         if is_termux:
-            # Di Termux: pasang pydantic v1 agar tidak compile rust/pydantic-core
-            subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--break-system-packages", "pydantic<2.0.0"], check=False)
-            pip_cmd.extend(["--break-system-packages"])
-        elif sys.platform.startswith("linux"):
-            pip_cmd.extend(["--break-system-packages"])
+            # Di Termux: wajib gunakan fastapi<0.100 dan pydantic<2 (Pure Python 100%, bebas dari Rust / pydantic-core)
+            install_pkgs = ["pydantic<2.0.0", "fastapi<0.100.0", "uvicorn"]
+            pip_cmd = [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--no-cache-dir",
+                "--break-system-packages",
+                *install_pkgs
+            ]
+        else:
+            pip_cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"]
+            if sys.platform.startswith("linux"):
+                pip_cmd.extend(["--break-system-packages"])
+            pip_cmd.extend(missing)
 
-        pip_cmd.extend(missing)
         with console.status("[bold green]Mengunduh & memasang paket...[/bold green]", spinner="dots"):
-            subprocess.run(pip_cmd, check=False)
-        console.print("[bold green]✓ Dependensi server berhasil dipasang otomatis![/bold green]\n")
+            res = subprocess.run(pip_cmd, capture_output=True, text=True)
+
+        # Verifikasi ulang import setelah instalasi
+        try:
+            import fastapi
+            import uvicorn
+            console.print("[bold green]✓ Dependensi server berhasil dipasang otomatis![/bold green]\n")
+        except ImportError as e:
+            console.print(f"[bold red]❌ Gagal memuat paket setelah instalasi: {e}[/bold red]")
+            if is_termux:
+                console.print("[yellow]💡 Menjalankan fallback Termux: pkg install python-pydantic...[/yellow]")
+                subprocess.run(["pkg", "install", "-y", "python-pydantic"], check=False)
+                subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--break-system-packages", "fastapi<0.100.0", "uvicorn"], check=False)
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8000):

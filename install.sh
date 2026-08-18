@@ -94,12 +94,12 @@ if $PYTHON_BIN -m pip help install 2>/dev/null | grep -q "break-system-packages"
 fi
 
 if [ "$IS_TERMUX" = true ]; then
-    # Di Termux: gunakan pydantic v1 (pure Python, tanpa rust/pydantic-core) agar instalasi 100% instan & mulus
-    $PYTHON_BIN -m pip install $PIP_FLAGS "pydantic<2.0.0" 2>/dev/null || true
+    # Di Termux: wajib gunakan fastapi<0.100.0 dan pydantic<2.0.0 (Pure Python, bebas dependensi Rust)
+    CORE_PKGS="pydantic<2.0.0 fastapi<0.100.0 uvicorn yt-dlp mutagen rich aiohttp websockets requests beautifulsoup4"
+else
+    CORE_PKGS="fastapi uvicorn yt-dlp mutagen rich aiohttp websockets requests beautifulsoup4"
 fi
 
-# Paket inti yang dibutuhkan
-CORE_PKGS="fastapi uvicorn yt-dlp mutagen rich aiohttp websockets requests beautifulsoup4"
 $PYTHON_BIN -m pip install $PIP_FLAGS $CORE_PKGS 2>/dev/null || {
     echo -e "${YELLOW}Memasang dependensi per modul untuk keandalan maksimal...${NC}"
     for p in $CORE_PKGS; do
