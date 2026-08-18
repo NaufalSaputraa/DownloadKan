@@ -658,6 +658,8 @@ async def analyze_url(req_data: Dict[str, Any]):
         err_msg = str(e)
         if "empty media response" in err_msg.lower() or "instagram" in err_msg.lower() or "login" in err_msg.lower():
             clean_err = "Konten Instagram ini tidak dapat diakses (mungkin akun privat atau postingan memerlukan login)."
+        elif "tiktok" in err_msg.lower() or "unexpected response from webpage" in err_msg.lower():
+            clean_err = "Video TikTok ini sedang tidak dapat diakses (mungkin akun privat, dibatasi wilayah, atau video telah dihapus)."
         elif "no video could be found" in err_msg.lower() or "twitter" in err_msg.lower():
             clean_err = "Tidak ditemukan file video pada tautan post X/Twitter ini."
         elif "geo restriction" in err_msg.lower() or "not available" in err_msg.lower():
@@ -770,7 +772,40 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
-            stdout_data, _ = await proc.communicate()
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode("utf-8", errors="replace")
+
+                pct_m = re.search(r'\((\d+)%\)', line_str)
+                spd_m = re.search(r'DL:([^\s\]]+)', line_str)
+                eta_m = re.search(r'ETA:([^\s\]]+)', line_str)
+
+                updated = False
+                if pct_m:
+                    active_jobs[job_id]["progress"] = int(pct_m.group(1))
+                    updated = True
+                if spd_m:
+                    active_jobs[job_id]["speed"] = f"{spd_m.group(1)}/s"
+                    updated = True
+                if eta_m:
+                    active_jobs[job_id]["eta"] = eta_m.group(1)
+                    updated = True
+
+                if updated:
+                    await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+
+            await proc.wait()
+            if proc.returncode == 0:
+                active_jobs[job_id]["status"] = "done"
+                active_jobs[job_id]["progress"] = 100
+            else:
+                stderr_data = await proc.stderr.read()
+                err_text = stderr_data.decode("utf-8", errors="replace")[-300:] or "aria2c exit non-zero"
+                active_jobs[job_id]["status"] = "failed"
+                active_jobs[job_id]["error"] = err_text
+
             # Auto-fetch Subtitle Indonesia & English untuk film torrent
             try:
                 loop = asyncio.get_event_loop()
@@ -778,13 +813,6 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
             except Exception:
                 pass
 
-            if proc.returncode == 0:
-                active_jobs[job_id]["status"] = "done"
-                active_jobs[job_id]["progress"] = 100
-            else:
-                active_jobs[job_id]["status"] = "failed"
-                error_text = stdout_data.decode("utf-8", errors="replace")[-500:] if stdout_data else "aria2c exit non-zero"
-                active_jobs[job_id]["error"] = error_text
             await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
             return
         except Exception as e:

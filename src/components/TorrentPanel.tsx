@@ -308,10 +308,11 @@ export function TorrentPanel() {
                         <button
                           onClick={() => {
                             if (isLocal) {
-                              void startLocalDownload(h.magnet, 'torrent', 'Torrents')
-                              push(`Memulai unduhan torrent & auto-subtitle: ${h.title}`, 'info')
+                              void startLocalDownload(h.magnet, 'torrent', 'Torrents', h.title)
+                              push(`Memulai unduhan torrent: ${h.title}`, 'info')
+                            } else {
+                              start(h.magnet)
                             }
-                            start(h.magnet)
                           }}
                           className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-paper transition-all hover:bg-[oklch(86%_0.008_260)] cursor-pointer"
                         >
