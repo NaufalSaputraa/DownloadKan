@@ -444,6 +444,10 @@ async def analyze_url(req_data: Dict[str, Any]):
         "no_warnings": True,
         "extract_flat": False,
         "skip_download": True,
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
+        },
     }
 
     try:
@@ -1401,14 +1405,22 @@ async def download_single_sub_endpoint(req_data: Dict[str, Any]):
 # ============================================================================
 DIST_DIR = Path(__file__).parent / "dist"
 if DIST_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(DIST_DIR / "assets")), name="assets")
+    assets_dir = DIST_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Endpoint API tidak ditemukan")
         file_path = DIST_DIR / full_path
         if file_path.is_file():
             return FileResponse(file_path)
         return FileResponse(DIST_DIR / "index.html")
+else:
+    @app.get("/")
+    async def fallback_home():
+        return HTMLResponse("<html><body style='font-family:sans-serif;text-align:center;padding:50px;background:#0d0d11;color:#fff;'><h1>⚡ DownloadKan Standalone Core Aktif</h1><p>Gunakan terminal CLI: <code>downloadkan</code></p></body></html>")
 
 
 if __name__ == "__main__":
