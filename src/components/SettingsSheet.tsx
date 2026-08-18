@@ -23,6 +23,7 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
   const [cleared, setCleared] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
+  const [copiedTarget, setCopiedTarget] = useState<'termux' | 'windows' | null>(null)
   const { isLocal, health } = useLocalBackend()
 
   const handleUpdateEngine = async () => {
@@ -218,6 +219,65 @@ export function SettingsSheet({ open, settings, onClose, onChange }: Props) {
                     </motion.div>
                   )}
                 </AnimatePresence>
+              </div>
+
+              {/* Panduan Instalasi & Tombol Salin 1-Klik */}
+              <div className="rounded-2xl border border-glass-border bg-glass/60 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-accent flex items-center gap-1.5">
+                    🚀 Pasang di HP (Termux) & Desktop
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {/* Android (Termux) */}
+                  <div className="rounded-xl bg-glass-2 p-2.5 border border-glass-border space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-ink flex items-center gap-1.5">
+                        <span>📱</span> Android (Termux)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cmd = 'pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/NaufalSaputraa/DownloadKan/main/install.sh | bash'
+                          navigator.clipboard?.writeText(cmd)
+                          setCopiedTarget('termux')
+                          setTimeout(() => setCopiedTarget(null), 2500)
+                        }}
+                        className="rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/30 px-2.5 py-1 text-[11px] font-mono text-accent transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedTarget === 'termux' ? '✓ Tersalin' : '📋 Salin Perintah'}
+                      </button>
+                    </div>
+                    <code className="block bg-black/40 rounded-lg p-2 font-mono text-[10px] text-ink-muted break-all select-all">
+                      pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/NaufalSaputraa/DownloadKan/main/install.sh | bash
+                    </code>
+                  </div>
+
+                  {/* Windows (PowerShell) */}
+                  <div className="rounded-xl bg-glass-2 p-2.5 border border-glass-border space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-ink flex items-center gap-1.5">
+                        <span>🪟</span> Windows (PowerShell)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cmd = 'irm https://raw.githubusercontent.com/NaufalSaputraa/DownloadKan/main/install.ps1 | iex'
+                          navigator.clipboard?.writeText(cmd)
+                          setCopiedTarget('windows')
+                          setTimeout(() => setCopiedTarget(null), 2500)
+                        }}
+                        className="rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/30 px-2.5 py-1 text-[11px] font-mono text-accent transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedTarget === 'windows' ? '✓ Tersalin' : '📋 Salin Perintah'}
+                      </button>
+                    </div>
+                    <code className="block bg-black/40 rounded-lg p-2 font-mono text-[10px] text-ink-muted break-all select-all">
+                      irm https://raw.githubusercontent.com/NaufalSaputraa/DownloadKan/main/install.ps1 | iex
+                    </code>
+                  </div>
+                </div>
               </div>
 
               {/* Data Local & History */}
