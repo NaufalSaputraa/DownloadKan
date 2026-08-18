@@ -10,11 +10,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 import requests
+from dataclasses import dataclass
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
 
 app = FastAPI(
     title="DownloadKan Standalone Local Core",
@@ -405,11 +405,17 @@ def parse_time_to_seconds(t_str: Optional[str]) -> Optional[float]:
 # ============================================================================
 # UNIVERSAL MEDIA ANALYZER (yt-dlp)
 # ============================================================================
-class AnalyzeRequest(BaseModel):
+@dataclass
+class AnalyzeRequest:
     url: str
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(url=data.get("url", ""))
+
 @app.post("/api/analyze")
-async def analyze_url(req: AnalyzeRequest):
+async def analyze_url(req_data: Dict[str, Any]):
+    req = AnalyzeRequest.from_dict(req_data)
     url = req.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="URL wajib diisi.")
@@ -551,21 +557,39 @@ async def analyze_url(req: AnalyzeRequest):
 # ============================================================================
 # DOWNLOAD HANDLER (yt-dlp / streamrip / aria2)
 # ============================================================================
-class DownloadJobRequest(BaseModel):
+@dataclass
+class DownloadJobRequest:
     url: str
-    format: str = "best" # "best_video", "mp3", "flac", "torrent"
+    format: str = "best"  # "best_video", "mp3", "flac", "torrent"
     title: Optional[str] = None
     artist: Optional[str] = None
     album: Optional[str] = None
     artwork: Optional[str] = None
-    category: str = "Videos" # "Videos", "Music", "Torrents"
+    category: str = "Videos"  # "Videos", "Music", "Torrents"
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     subtitles: bool = False
     sub_lang: str = "id,en"
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            url=data.get("url", ""),
+            format=data.get("format", "best"),
+            title=data.get("title"),
+            artist=data.get("artist"),
+            album=data.get("album"),
+            artwork=data.get("artwork"),
+            category=data.get("category", "Videos"),
+            start_time=data.get("start_time"),
+            end_time=data.get("end_time"),
+            subtitles=bool(data.get("subtitles", False)),
+            sub_lang=data.get("sub_lang", "id,en"),
+        )
+
 @app.post("/api/download")
-async def start_download(req: DownloadJobRequest):
+async def start_download(req_data: Dict[str, Any]):
+    req = DownloadJobRequest.from_dict(req_data)
     job_id = f"job_{len(active_jobs) + 1}_{int(asyncio.get_event_loop().time())}"
     
     target_dir = DOWNLOAD_DIR / req.category
@@ -849,21 +873,44 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
 # ============================================================================
 concurrency_semaphore = asyncio.Semaphore(3)
 
-class BatchDownloadItem(BaseModel):
+@dataclass
+class BatchDownloadItem:
     url: str
     title: Optional[str] = None
     artist: Optional[str] = None
     album: Optional[str] = None
     artwork: Optional[str] = None
 
-class BatchDownloadRequest(BaseModel):
+    @classmethod
+    def from_dict(cls, d: dict):
+        return cls(
+            url=d.get("url", ""),
+            title=d.get("title"),
+            artist=d.get("artist"),
+            album=d.get("album"),
+            artwork=d.get("artwork"),
+        )
+
+@dataclass
+class BatchDownloadRequest:
     items: List[BatchDownloadItem]
     format: str = "mp3"  # mp3, flac, video
     category: str = "Music"
     playlist_name: Optional[str] = None
 
+    @classmethod
+    def from_dict(cls, d: dict):
+        items_raw = d.get("items", [])
+        return cls(
+            items=[BatchDownloadItem.from_dict(it) if isinstance(it, dict) else it for it in items_raw],
+            format=d.get("format", "mp3"),
+            category=d.get("category", "Music"),
+            playlist_name=d.get("playlist_name"),
+        )
+
 @app.post("/api/download/batch")
-async def start_batch_download(req: BatchDownloadRequest):
+async def start_batch_download(req_data: Dict[str, Any]):
+    req = BatchDownloadRequest.from_dict(req_data)
     if not req.items:
         raise HTTPException(status_code=400, detail="Daftar item batch tidak boleh kosong.")
 
@@ -1306,14 +1353,24 @@ async def auto_download_movie_subtitles_endpoint(title: str):
     return {"status": "ok", "title": title, "saved_files": saved}
 
 
-class SubtitleSingleDownloadRequest(BaseModel):
+@dataclass
+class SubtitleSingleDownloadRequest:
     sub_page: str
     lang_code: str
     movie_title: str
 
+    @classmethod
+    def from_dict(cls, d: dict):
+        return cls(
+            sub_page=d.get("sub_page", ""),
+            lang_code=d.get("lang_code", ""),
+            movie_title=d.get("movie_title", ""),
+        )
+
 
 @app.post("/api/subtitles/download-single")
-async def download_single_sub_endpoint(req: SubtitleSingleDownloadRequest):
+async def download_single_sub_endpoint(req_data: Dict[str, Any]):
+    req = SubtitleSingleDownloadRequest.from_dict(req_data)
     target_dir = DOWNLOAD_DIR / "Torrents"
     loop = asyncio.get_event_loop()
     saved_file = await loop.run_in_executor(

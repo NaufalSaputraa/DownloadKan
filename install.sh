@@ -39,7 +39,7 @@ fi
 echo -e "${YELLOW}[2/5] Memasang paket sistem (Python, FFmpeg, Aria2, Git)...${NC}"
 if [ "$IS_TERMUX" = true ]; then
     pkg update -y || true
-    pkg install -y python ffmpeg aria2 git curl nodejs
+    pkg install -y python python-pip python-pydantic python-cryptography ffmpeg aria2 git curl nodejs || pkg install -y python ffmpeg aria2 git curl nodejs
     
     # Setup Termux Storage Permission jika belum
     if [ ! -d "$HOME/storage" ]; then
