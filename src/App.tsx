@@ -8,7 +8,6 @@ import { SettingsSheet } from './components/SettingsSheet'
 import { AudioPlayer, type TrackState } from './components/AudioPlayer'
 import { PlaylistBatchModal } from './components/PlaylistBatchModal'
 import { Toaster } from './components/ui/Toast'
-import { DEEZLOAD_BOT, telegramBotDeepLink } from './lib/telegram'
 import { useMedia } from './hooks/useMedia'
 import { useSettings } from './hooks/useSettings'
 import { useToast } from './hooks/useToast'
@@ -389,7 +388,7 @@ function SkeletonState() {
   )
 }
 
-function ErrorState({ message, url }: { message: string; url?: string }) {
+function ErrorState({ message }: { message: string; url?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -398,22 +397,6 @@ function ErrorState({ message, url }: { message: string; url?: string }) {
     >
       <h3 className="mb-1 font-medium text-[oklch(80%_0.14_25)]">Gagal menganalisis</h3>
       <p className="whitespace-pre-wrap font-mono text-sm text-ink-muted">{message}</p>
-
-      {url && (
-        <div className="mt-4 flex flex-wrap items-center gap-2.5">
-          <a
-            href={telegramBotDeepLink(DEEZLOAD_BOT, url)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-2.5 text-sm font-medium text-sky-300 transition-colors hover:bg-sky-400/20"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M21.9 4.1 18.8 19.3c-.2 1-.8 1.2-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L7.5 12.5 2.8 11c-1-.3-1-1 .2-1.5l17.6-6.8c.9-.3 1.6.2 1.3 1.4Z" />
-            </svg>
-            Coba via Telegram ({DEEZLOAD_BOT})
-          </a>
-        </div>
-      )}
     </motion.div>
   )
 }

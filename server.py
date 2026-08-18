@@ -416,6 +416,74 @@ def parse_time_to_seconds(t_str: Optional[str]) -> Optional[float]:
     return None
 
 
+def extract_tiktok_media(url: str) -> Optional[Dict[str, Any]]:
+    """Ekstraksi video TikTok tanpa watermark & audio MP3 kualitas tinggi via TikWM Core."""
+    try:
+        import requests
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+        }
+        r = requests.get(f"https://www.tikwm.com/api/?url={urllib.parse.quote(url)}", headers=headers, timeout=10)
+        if r.status_code == 200:
+            res_json = r.json()
+            if res_json.get("code") == 0:
+                d = res_json.get("data", {})
+                if d and (d.get("play") or d.get("hdplay")):
+                    raw_title = d.get("title") or "TikTok Video"
+                    clean_t = sanitize_clean_name(raw_title) or "TikTok Video"
+                    cover = d.get("cover")
+                    duration = d.get("duration")
+                    music_url = d.get("music")
+                    hd_url = d.get("hdplay")
+                    play_url = d.get("play")
+
+                    downloads = []
+                    # Audio MP3
+                    if music_url:
+                        downloads.append({
+                            "format_id": "audio",
+                            "type": "Audio MP3 (Soundtrack)",
+                            "ext": "mp3",
+                            "filesize": None,
+                            "url": music_url,
+                            "local": True,
+                        })
+                    # Video HD No Watermark
+                    if hd_url:
+                        downloads.append({
+                            "format_id": "hdplay",
+                            "type": "Video HD Tanpa Watermark (MP4)",
+                            "ext": "mp4",
+                            "filesize": d.get("size"),
+                            "url": hd_url,
+                            "local": True,
+                        })
+                    # Video Standard No Watermark
+                    if play_url:
+                        downloads.append({
+                            "format_id": "play",
+                            "type": "Video MP4 Tanpa Watermark",
+                            "ext": "mp4",
+                            "filesize": d.get("size"),
+                            "url": play_url,
+                            "local": True,
+                        })
+
+                    return {
+                        "title": clean_t,
+                        "thumbnail": cover,
+                        "duration": duration,
+                        "platform": "tiktok",
+                        "sourceUrl": url,
+                        "downloads": downloads,
+                        "engine": "TikWM No-Watermark Core",
+                    }
+    except Exception as e:
+        print(f"TikTok TikWM extraction notice: {e}")
+    return None
+
+
 # ============================================================================
 # UNIVERSAL MEDIA ANALYZER (yt-dlp)
 # ============================================================================
@@ -433,6 +501,13 @@ async def analyze_url(req_data: Dict[str, Any]):
     url = req.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="URL wajib diisi.")
+
+    # 0. Prioritaskan TikTok Extractor tanpa watermark
+    if "tiktok.com" in url.lower():
+        loop = asyncio.get_event_loop()
+        tt_res = await loop.run_in_executor(None, extract_tiktok_media, url)
+        if tt_res:
+            return tt_res
 
     try:
         import yt_dlp
@@ -696,7 +771,55 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
             await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
             return
 
-    # 2. AUDIO & MUSIC (SpotiFLAC Pattern + Mutagen Lyrics Embedding)
+    # 2. TIKTOK & DIRECT MEDIA STREAM (High-Speed Direct Download)
+    if "tiktok.com" in url.lower() or "tiktokcdn" in url.lower() or "tikwm" in url.lower() or (url.startswith("http") and any(url.lower().endswith(x) for x in [".mp4", ".mp3", ".webm", ".m4a"])):
+        try:
+            target_stream = url
+            is_audio = req.category == "Music" or (req.format or "").lower() in ["audio", "mp3"]
+
+            if "tiktok.com" in url.lower():
+                tt = extract_tiktok_media(url)
+                if tt and tt.get("downloads"):
+                    if is_audio:
+                        target_stream = next((d["url"] for d in tt["downloads"] if d["ext"] == "mp3"), tt["downloads"][0]["url"])
+                    else:
+                        target_stream = next((d["url"] for d in tt["downloads"] if d["ext"] == "mp4"), tt["downloads"][0]["url"])
+
+            if target_stream.startswith("http"):
+                clean_name = sanitize_clean_name(req.title or "TikTok_Video")
+                ext = "mp3" if is_audio else "mp4"
+                dest_file = target_dir / f"{clean_name}.{ext}"
+
+                import requests
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                }
+                with requests.get(target_stream, headers=headers, stream=True, timeout=30) as r:
+                    r.raise_for_status()
+                    total_len = int(r.headers.get("content-length", 0))
+                    downloaded = 0
+                    start_t = time.time()
+                    with open(dest_file, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=65536):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if total_len > 0:
+                                    pct = round((downloaded / total_len) * 100, 1)
+                                    el = time.time() - start_t
+                                    spd = (downloaded / el) if el > 0 else 0
+                                    active_jobs[job_id]["progress"] = pct
+                                    active_jobs[job_id]["speed"] = f"{spd / 1024 / 1024:.1f} MB/s" if spd > 1024*1024 else f"{spd / 1024:.0f} KB/s"
+                                    asyncio.run(manager.broadcast({"type": "job_update", "job": active_jobs[job_id]}))
+
+                active_jobs[job_id]["status"] = "done"
+                active_jobs[job_id]["progress"] = 100
+                await manager.broadcast({"type": "job_update", "job": active_jobs[job_id]})
+                return
+        except Exception as e:
+            print(f"Direct stream download notice, fallback to standard engine: {e}")
+
+    # 3. AUDIO & MUSIC (SpotiFLAC Pattern + Mutagen Lyrics Embedding)
     if req.category == "Music" or req.format in ["mp3", "flac", "audio"]:
         try:
             import yt_dlp
