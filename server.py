@@ -812,24 +812,25 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
                 active_jobs[job_id]["speed"] = speed_str
         fmt_low = (req.format or "best").lower()
         if fmt_low == "2160p" or "4k" in fmt_low or "2160" in fmt_low:
-            selected_fmt = "bestvideo[height<=2160]+bestaudio/best[height<=2160]/best"
+            selected_fmt = "bestvideo[height=2160]+bestaudio/bestvideo[height<=2160]+bestaudio/best[height<=2160]/best"
         elif fmt_low == "1440p" or "2k" in fmt_low or "1440" in fmt_low:
-            selected_fmt = "bestvideo[height<=1440]+bestaudio/best[height<=1440]/best"
+            selected_fmt = "bestvideo[height=1440]+bestaudio/bestvideo[height<=1440]+bestaudio/best[height<=1440]/best"
         elif fmt_low == "1080p" or "full hd" in fmt_low or "1080" in fmt_low:
-            selected_fmt = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+            selected_fmt = "bestvideo[height=1080]+bestaudio/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
         elif fmt_low == "720p" or "720" in fmt_low:
-            selected_fmt = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+            selected_fmt = "bestvideo[height=720]+bestaudio/bestvideo[height<=720]+bestaudio/best[height<=720]/best"
         elif fmt_low == "480p" or "480" in fmt_low:
-            selected_fmt = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
+            selected_fmt = "bestvideo[height=480]+bestaudio/bestvideo[height<=480]+bestaudio/best[height<=480]/best"
         elif fmt_low == "360p" or "360" in fmt_low:
-            selected_fmt = "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
+            selected_fmt = "bestvideo[height=360]+bestaudio/bestvideo[height<=360]+bestaudio/best[height<=360]/best"
         elif req.format and req.format not in ["best", "video"]:
             selected_fmt = req.format
         else:
             selected_fmt = "bestvideo+bestaudio/best"
 
+        out_tmpl = str(target_dir / f"{req.title}.%(ext)s") if req.title else str(target_dir / "%(title)s.%(ext)s")
         ydl_opts = {
-            "outtmpl": str(target_dir / "%(title)s.%(ext)s"),
+            "outtmpl": out_tmpl,
             "progress_hooks": [ytdl_progress_hook],
             "quiet": True,
             "no_warnings": True,
@@ -843,7 +844,7 @@ async def run_download_worker(job_id: str, req: DownloadJobRequest, target_dir: 
             ],
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["web", "default"]
+                    "player_client": ["ios", "web", "mweb", "android"]
                 }
             },
         }
