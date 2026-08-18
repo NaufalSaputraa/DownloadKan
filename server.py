@@ -644,7 +644,18 @@ async def analyze_url(req_data: Dict[str, Any]):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal menganalisis: {str(e)}")
+        err_msg = str(e)
+        if "empty media response" in err_msg.lower() or "instagram" in err_msg.lower() or "login" in err_msg.lower():
+            clean_err = "Konten Instagram ini tidak dapat diakses (mungkin akun privat atau postingan memerlukan login)."
+        elif "no video could be found" in err_msg.lower() or "twitter" in err_msg.lower():
+            clean_err = "Tidak ditemukan file video pada tautan post X/Twitter ini."
+        elif "geo restriction" in err_msg.lower() or "not available" in err_msg.lower():
+            clean_err = "Media ini dibatasi wilayah geografis (geo-restriction) oleh penyedia konten."
+        elif "404" in err_msg:
+            clean_err = "Tautan media tidak ditemukan atau konten telah dihapus oleh pengunggah."
+        else:
+            clean_err = re.sub(r"ERROR:\s*\[[^\]]+\]\s*", "", err_msg).split("\n")[0]
+        raise HTTPException(status_code=400, detail=clean_err)
 
 
 # ============================================================================
